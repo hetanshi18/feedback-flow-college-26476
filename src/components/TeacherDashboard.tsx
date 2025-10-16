@@ -14,11 +14,14 @@ import { toast } from 'sonner';
 import { FileText, CheckCircle, Clock, Eye, MessageSquare, AlertTriangle, Star, Upload } from 'lucide-react';
 import PaperCheckingInterface from './PaperCheckingInterface';
 import UploadedAnswerSheets from './UploadedAnswerSheets';
+import StudentAnswerSheetViewer from './StudentAnswerSheetViewer';
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [viewingAnswerSheet, setViewingAnswerSheet] = useState<any>(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
 
   // Get current teacher ID from teachers table
   useEffect(() => {
@@ -329,6 +332,18 @@ const TeacherDashboard = () => {
                     <p className="text-sm mt-1">{grievance.grievance_text}</p>
                   </div>
 
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setViewingAnswerSheet(grievance.answer_sheet);
+                      setIsViewerOpen(true);
+                    }}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Paper
+                  </Button>
+
                   {grievance.status === 'pending' && (
                     <div className="flex gap-2">
                       <Dialog>
@@ -428,6 +443,12 @@ const TeacherDashboard = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      <StudentAnswerSheetViewer
+        answerSheet={viewingAnswerSheet}
+        open={isViewerOpen}
+        onOpenChange={setIsViewerOpen}
+      />
     </div>
   );
 };

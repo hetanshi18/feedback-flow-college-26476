@@ -59,6 +59,7 @@ const PaperCheckingInterface = () => {
   const { user } = useAuth();
   const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
   const fabricCanvases = useRef<{ [key: number]: FabricCanvas | null }>({});
+  const activeToolRef = useRef<"pen" | "eraser" | "tick" | "cross" | "oval" | "textbox">("pen");
   const [activeTool, setActiveTool] = useState<
     "pen" | "eraser" | "tick" | "cross" | "oval" | "textbox"
   >("pen");
@@ -285,13 +286,18 @@ const PaperCheckingInterface = () => {
 
     // Click handler: place preset annotations at exact click point
     fabricCanvas.on("mouse:down", (opt: any) => {
+      const currentTool = activeToolRef.current;
+      // Only handle preset annotations when not in drawing mode
+      if (currentTool === "pen" || currentTool === "eraser") return;
+      
       const pointer = fabricCanvas.getPointer(opt.e);
       const x = pointer.x;
       const y = pointer.y;
-      if (activeTool === "tick") addPresetAnnotation("tick", x, y);
-      if (activeTool === "cross") addPresetAnnotation("cross", x, y);
-      if (activeTool === "oval") addPresetAnnotation("oval", x, y);
-      if (activeTool === "textbox") addPresetAnnotation("textbox", x, y);
+      
+      if (currentTool === "tick") addPresetAnnotation("tick", x, y, pageNum);
+      if (currentTool === "cross") addPresetAnnotation("cross", x, y, pageNum);
+      if (currentTool === "oval") addPresetAnnotation("oval", x, y, pageNum);
+      if (currentTool === "textbox") addPresetAnnotation("textbox", x, y, pageNum);
     });
 
     fabricCanvases.current[pageNum] = fabricCanvas;
@@ -305,9 +311,11 @@ const PaperCheckingInterface = () => {
   const addPresetAnnotation = (
     type: "tick" | "cross" | "oval" | "textbox",
     atX?: number,
-    atY?: number
+    atY?: number,
+    pageNum?: number
   ) => {
-    const canvas = fabricCanvases.current[pageNumber];
+    const targetPage = pageNum ?? pageNumber;
+    const canvas = fabricCanvases.current[targetPage];
     if (!canvas) return;
 
     const redColor = "#FF0000";
@@ -389,6 +397,9 @@ const PaperCheckingInterface = () => {
   };
 
   useEffect(() => {
+    // Update the ref whenever activeTool changes
+    activeToolRef.current = activeTool;
+    
     const canvas = fabricCanvases.current[pageNumber];
     if (canvas) {
       canvas.isDrawingMode = activeTool === "pen" || activeTool === "eraser";

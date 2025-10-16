@@ -63,7 +63,8 @@ const PaperCheckingInterface = () => {
     "pen" | "eraser" | "tick" | "cross" | "oval" | "textbox"
   >("pen");
   const [annotationColor] = useState("#FF0000"); // Fixed to red
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentTeacherId, setCurrentTeacherId] = useState<string | null>(null);
+  const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   const [selectedPaper, setSelectedPaper] = useState<any>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -98,33 +99,44 @@ const PaperCheckingInterface = () => {
   //   fetchCurrentUser();
   // }, [user?.id]);
 
-  // Get current teacher ID
+  // Get current teacher ID (for grading) and profile ID (for created_by)
   useEffect(() => {
-    const fetchCurrentTeacher = async () => {
-      if (user?.id) {
-        const { data, error } = await supabase
-          .from("teachers")
-          .select("id")
-          .eq("user_id", user.id)
-          .single();
+    const fetchIds = async () => {
+      if (!user?.id) return;
 
-        if (data && !error) {
-          setCurrentUserId(data.id);
-        } else {
-          console.error("Teacher not found:", error);
-          // Handle case where user is not a teacher
-          toast.error(
-            "Teacher profile not found. Please contact administrator."
-          );
-        }
+      // Teacher id
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (teacherData && !teacherError) {
+        setCurrentTeacherId(teacherData.id);
+      } else {
+        console.error("Teacher not found:", teacherError);
+        toast.error("Teacher profile not found. Please contact administrator.");
+      }
+
+      // Profile id
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileData && !profileError) {
+        setCurrentProfileId(profileData.id);
+      } else {
+        console.warn("Profile not found for user.", profileError);
       }
     };
 
-    fetchCurrentTeacher();
+    fetchIds();
   }, [user?.id]);
   // Fetch answer sheets assigned to current teacher
   const { answerSheets, loading } = useAnswerSheets(
-    currentUserId || undefined,
+    currentTeacherId || undefined,
     user?.user_metadata?.role
   );
 
@@ -159,17 +171,17 @@ const PaperCheckingInterface = () => {
   // Map Fabric.js object types to database annotation types
   const mapFabricTypeToDbType = (fabricType: string): string => {
     const typeMap: { [key: string]: string } = {
-      'path': 'pen',
-      'ellipse': 'circle',
-      'i-text': 'text',
-      'text': 'text',
-      'rect': 'highlight',
+      path: "pen",
+      ellipse: "circle",
+      "i-text": "text",
+      text: "text",
+      rect: "highlight",
     };
-    return typeMap[fabricType] || 'pen';
+    return typeMap[fabricType] || "pen";
   };
 
   const saveAnnotationsToDB = async () => {
-    if (!selectedPaper || !currentUserId) {
+    if (!selectedPaper || !currentProfileId) {
       toast.error("Cannot save annotations");
       return;
     }
@@ -182,11 +194,11 @@ const PaperCheckingInterface = () => {
         if (canvas) {
           const objects = canvas.getObjects();
           console.log(`Page ${pageNum} has ${objects.length} objects`);
-          
+
           objects.forEach((obj: any) => {
             // Properly serialize Fabric.js object
             const fabricObject = obj.toJSON();
-            
+
             annotationData.push({
               answer_sheet_id: selectedPaper.id,
               page_number: parseInt(pageNum),
@@ -195,13 +207,16 @@ const PaperCheckingInterface = () => {
               y_position: obj.top || 0,
               content: JSON.stringify(fabricObject),
               color: obj.stroke || obj.fill || annotationColor,
-              created_by: currentUserId,
+              created_by: currentProfileId,
             });
           });
         }
       });
 
-      console.log(`Saving ${annotationData.length} annotations`, annotationData);
+      console.log(
+        `Saving ${annotationData.length} annotations`,
+        annotationData
+      );
 
       // Delete existing annotations for this answer sheet
       const { error: deleteError } = await supabase
@@ -225,9 +240,11 @@ const PaperCheckingInterface = () => {
           console.error("Insert error:", error);
           throw error;
         }
-        
+
         console.log("Successfully saved annotations:", data);
-        toast.success(`${annotationData.length} annotation(s) saved successfully`);
+        toast.success(
+          `${annotationData.length} annotation(s) saved successfully`
+        );
       } else {
         toast.info("No annotations to save");
       }
@@ -440,7 +457,7 @@ const PaperCheckingInterface = () => {
   };
 
   const handleSavePaper = async () => {
-    if (!selectedPaper || !currentUserId) {
+    if (!selectedPaper || !currentTeacherId) {
       toast.error("Please select a paper and ensure you are logged in");
       return;
     }
@@ -451,7 +468,7 @@ const PaperCheckingInterface = () => {
         .from("answer_sheets")
         .update({
           obtained_marks: totalObtainedMarks,
-          graded_by: currentUserId,
+          graded_by: currentTeacherId,
           graded_at: new Date().toISOString(),
           grading_status: "completed",
           remarks: Object.entries(comments)
@@ -469,7 +486,7 @@ const PaperCheckingInterface = () => {
           question_number: parseInt(questionNumber),
           obtained_marks: obtainedMarks,
           max_marks: 10, // Default max marks per question
-          graded_by: currentUserId,
+          graded_by: currentTeacherId,
           graded_at: new Date().toISOString(),
           comments: comments[questionNumber] || null,
         })
@@ -491,7 +508,7 @@ const PaperCheckingInterface = () => {
           annotation_type: annotation.type,
           content: annotation.content,
           color: annotation.color || "#000000",
-          created_by: currentUserId,
+          created_by: currentProfileId,
         }));
 
         const { error: annotationError } = await supabase
@@ -638,7 +655,6 @@ const PaperCheckingInterface = () => {
                         variant="outline"
                         onClick={() => {
                           setActiveTool("tick");
-                          addPresetAnnotation("tick");
                         }}
                         title="Add Tick Mark (Red)"
                         className="text-red-600 hover:text-red-700"
@@ -650,7 +666,6 @@ const PaperCheckingInterface = () => {
                         variant="outline"
                         onClick={() => {
                           setActiveTool("cross");
-                          addPresetAnnotation("cross");
                         }}
                         title="Add Cross Mark (Red)"
                         className="text-red-600 hover:text-red-700"
@@ -662,7 +677,6 @@ const PaperCheckingInterface = () => {
                         variant="outline"
                         onClick={() => {
                           setActiveTool("oval");
-                          addPresetAnnotation("oval");
                         }}
                         title="Add Oval (Red)"
                         className="text-red-600 hover:text-red-700"
@@ -674,7 +688,6 @@ const PaperCheckingInterface = () => {
                         variant="outline"
                         onClick={() => {
                           setActiveTool("textbox");
-                          addPresetAnnotation("textbox");
                         }}
                         title="Add Text Box (Red)"
                         className="text-red-600 hover:text-red-700"
@@ -739,7 +752,7 @@ const PaperCheckingInterface = () => {
                     </div>
 
                     {/* PDF Display with Annotation Canvas */}
-                    <div className="relative border rounded-lg overflow-hidden bg-white">
+                    <div className="border rounded-lg overflow-hidden bg-white">
                       {pdfError ? (
                         <div className="flex flex-col items-center justify-center p-8 text-center">
                           <FileText className="w-16 h-16 text-muted-foreground mb-4" />
@@ -757,44 +770,48 @@ const PaperCheckingInterface = () => {
                           </Button>
                         </div>
                       ) : (
-                        <>
-                          <Document
-                            file={getPdfUrl(selectedPaper.file_url)}
-                            onLoadSuccess={onDocumentLoadSuccess}
-                            onLoadError={onDocumentLoadError}
-                            className="flex justify-center"
-                            loading={
-                              <div className="flex items-center justify-center p-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                <span className="ml-2">Loading PDF...</span>
-                              </div>
-                            }
+                        <div className="flex justify-center">
+                          <div
+                            className="relative"
+                            style={{ width: pageWidth, height: pageHeight }}
                           >
-                            <Page
-                              pageNumber={pageNumber}
-                              scale={scale}
-                              renderTextLayer={false}
-                              renderAnnotationLayer={false}
-                              onRenderSuccess={(page: any) => {
-                                const viewport = page.getViewport({ scale });
-                                setPageWidth(viewport.width);
-                                setPageHeight(viewport.height);
-                                // Initialize after DOM updates
-                                setTimeout(
-                                  () => initializeFabricCanvas(pageNumber),
-                                  0
-                                );
+                            <Document
+                              file={getPdfUrl(selectedPaper.file_url)}
+                              onLoadSuccess={onDocumentLoadSuccess}
+                              onLoadError={onDocumentLoadError}
+                              loading={
+                                <div className="flex items-center justify-center p-8">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                  <span className="ml-2">Loading PDF...</span>
+                                </div>
+                              }
+                            >
+                              <Page
+                                pageNumber={pageNumber}
+                                scale={scale}
+                                renderTextLayer={false}
+                                renderAnnotationLayer={false}
+                                onRenderSuccess={(page: any) => {
+                                  const viewport = page.getViewport({ scale });
+                                  setPageWidth(viewport.width);
+                                  setPageHeight(viewport.height);
+                                  // Initialize after DOM updates
+                                  setTimeout(
+                                    () => initializeFabricCanvas(pageNumber),
+                                    0
+                                  );
+                                }}
+                              />
+                            </Document>
+                            <canvas
+                              ref={(el) => {
+                                if (el) canvasRefs.current[pageNumber] = el;
                               }}
+                              className="absolute top-0 left-0 pointer-events-auto"
+                              style={{ zIndex: 10 }}
                             />
-                          </Document>
-                          <canvas
-                            ref={(el) => {
-                              if (el) canvasRefs.current[pageNumber] = el;
-                            }}
-                            className="absolute top-0 left-0 pointer-events-auto"
-                            style={{ zIndex: 10 }}
-                          />
-                        </>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>

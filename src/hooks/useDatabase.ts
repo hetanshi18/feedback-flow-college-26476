@@ -294,6 +294,10 @@ export const useGrievances = (currentStudentId?: string, role?: string) => {
           .select(`
             *,
             answer_sheet:answer_sheets(
+              id,
+              file_url,
+              obtained_marks,
+              total_marks,
               exam:exams(
                 name,
                 subject:subjects(name)

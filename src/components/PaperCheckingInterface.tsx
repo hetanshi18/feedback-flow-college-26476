@@ -156,6 +156,18 @@ const PaperCheckingInterface = () => {
     }
   };
 
+  // Map Fabric.js object types to database annotation types
+  const mapFabricTypeToDbType = (fabricType: string): string => {
+    const typeMap: { [key: string]: string } = {
+      'path': 'pen',
+      'ellipse': 'circle',
+      'i-text': 'text',
+      'text': 'text',
+      'rect': 'highlight',
+    };
+    return typeMap[fabricType] || 'pen';
+  };
+
   const saveAnnotationsToDB = async () => {
     if (!selectedPaper || !currentUserId) {
       toast.error("Cannot save annotations");
@@ -178,7 +190,7 @@ const PaperCheckingInterface = () => {
             annotationData.push({
               answer_sheet_id: selectedPaper.id,
               page_number: parseInt(pageNum),
-              annotation_type: obj.type || "path",
+              annotation_type: mapFabricTypeToDbType(obj.type || "path"),
               x_position: obj.left || 0,
               y_position: obj.top || 0,
               content: JSON.stringify(fabricObject),

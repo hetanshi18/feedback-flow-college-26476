@@ -109,13 +109,6 @@ export type Database = {
             referencedRelation: "answer_sheet_questions"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_answer_sheet_annotations_answer_sheet"
-            columns: ["answer_sheet_id"]
-            isOneToOne: false
-            referencedRelation: "answer_sheets"
-            referencedColumns: ["id"]
-          },
         ]
       }
       answer_sheet_questions: {
@@ -168,13 +161,6 @@ export type Database = {
             columns: ["graded_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_answer_sheet_questions_answer_sheet"
-            columns: ["answer_sheet_id"]
-            isOneToOne: false
-            referencedRelation: "answer_sheets"
             referencedColumns: ["id"]
           },
         ]
@@ -231,18 +217,11 @@ export type Database = {
             foreignKeyName: "answer_sheets_graded_by_fkey"
             columns: ["graded_by"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "answer_sheets_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_answer_sheets_student"
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
@@ -308,20 +287,6 @@ export type Database = {
             referencedRelation: "students"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_exam_enrollments_exam"
-            columns: ["exam_id"]
-            isOneToOne: false
-            referencedRelation: "exams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_exam_enrollments_student"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
         ]
       }
       exam_teacher_assignments: {
@@ -359,13 +324,6 @@ export type Database = {
           },
           {
             foreignKeyName: "exam_teacher_assignments_teacher_id_fkey"
-            columns: ["teacher_id"]
-            isOneToOne: false
-            referencedRelation: "teachers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_exam_teacher_assignments_teacher"
             columns: ["teacher_id"]
             isOneToOne: false
             referencedRelation: "teachers"
@@ -433,13 +391,6 @@ export type Database = {
             referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_exams_subject"
-            columns: ["subject_id"]
-            isOneToOne: false
-            referencedRelation: "subjects"
-            referencedColumns: ["id"]
-          },
         ]
       }
       grievances: {
@@ -493,13 +444,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_grievances_student"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "grievances_answer_sheet_id_fkey"
             columns: ["answer_sheet_id"]
             isOneToOne: false
@@ -510,14 +454,14 @@ export type Database = {
             foreignKeyName: "grievances_reviewed_by_fkey"
             columns: ["reviewed_by"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "grievances_student_id_fkey"
             columns: ["student_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
         ]
@@ -653,20 +597,6 @@ export type Database = {
           semester_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "fk_subjects_department"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_subjects_semester"
-            columns: ["semester_id"]
-            isOneToOne: false
-            referencedRelation: "semesters"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "subjects_department_id_fkey"
             columns: ["department_id"]

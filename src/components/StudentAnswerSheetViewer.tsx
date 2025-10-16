@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { Canvas as FabricCanvas } from 'fabric';
+import { Canvas as FabricCanvas, util, FabricObject } from 'fabric';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -21,8 +21,11 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [annotations, setAnnotations] = useState<any[]>([]);
+  const [pageWidth, setPageWidth] = useState<number>(800);
+  const [pageHeight, setPageHeight] = useState<number>(1100);
   const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
   const fabricCanvases = useRef<{ [key: number]: FabricCanvas | null }>({});
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open && answerSheet) {
@@ -62,33 +65,56 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
     setPageNumber(1);
   };
 
-  const initializeCanvas = (pageNum: number) => {
+  const initializeCanvas = async (pageNum: number) => {
     const canvasEl = canvasRefs.current[pageNum];
-    if (!canvasEl || fabricCanvases.current[pageNum]) return;
+    if (!canvasEl) return;
+    
+    // Dispose existing canvas if it exists
+    if (fabricCanvases.current[pageNum]) {
+      fabricCanvases.current[pageNum]?.dispose();
+      fabricCanvases.current[pageNum] = null;
+    }
     
     const canvas = new FabricCanvas(canvasEl, {
       isDrawingMode: false,
       selection: false,
-      width: 800,
-      height: 1100,
+      width: pageWidth,
+      height: pageHeight,
     });
     
     // Make canvas read-only for students
     canvas.selection = false;
+    canvas.forEachObject((obj) => {
+      obj.selectable = false;
+      obj.evented = false;
+    });
     
     fabricCanvases.current[pageNum] = canvas;
     
     // Load annotations for this page
     const pageAnnotations = annotations.filter(ann => ann.page_number === pageNum);
-    pageAnnotations.forEach((ann: any) => {
+    for (const ann of pageAnnotations) {
       try {
         const content = JSON.parse(ann.content);
-        // Recreate the annotation object on the canvas
-        // This is simplified - full implementation would need to handle different object types
+        
+        // Load the Fabric.js objects from the saved JSON
+        if (content.objects) {
+          for (const objData of content.objects) {
+            const enlivened = await util.enlivenObjects([objData]);
+            if (enlivened && enlivened[0] instanceof FabricObject) {
+              const obj = enlivened[0] as FabricObject;
+              obj.selectable = false;
+              obj.evented = false;
+              canvas.add(obj);
+            }
+          }
+        }
+        
+        canvas.renderAll();
       } catch (error) {
         console.error('Error loading annotation:', error);
       }
-    });
+    }
   };
 
   return (
@@ -126,26 +152,32 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
             </Button>
           </div>
 
-          <div className="relative border rounded-lg overflow-hidden bg-white">
-            <Document
-              file={getPdfUrl(answerSheet?.file_url)}
-              onLoadSuccess={onDocumentLoadSuccess}
-              className="flex justify-center"
-            >
-              <Page
-                pageNumber={pageNumber}
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
-                onRenderSuccess={() => initializeCanvas(pageNumber)}
+          <div ref={pdfContainerRef} className="relative border rounded-lg overflow-hidden bg-white flex justify-center">
+            <div className="relative">
+              <Document
+                file={getPdfUrl(answerSheet?.file_url)}
+                onLoadSuccess={onDocumentLoadSuccess}
+              >
+                <Page
+                  pageNumber={pageNumber}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  onRenderSuccess={(page) => {
+                    const viewport = page.getViewport({ scale: 1 });
+                    setPageWidth(viewport.width);
+                    setPageHeight(viewport.height);
+                    setTimeout(() => initializeCanvas(pageNumber), 100);
+                  }}
+                />
+              </Document>
+              <canvas
+                ref={(el) => {
+                  if (el) canvasRefs.current[pageNumber] = el;
+                }}
+                className="absolute top-0 left-0 pointer-events-none"
+                style={{ zIndex: 10 }}
               />
-            </Document>
-            <canvas
-              ref={(el) => {
-                if (el) canvasRefs.current[pageNumber] = el;
-              }}
-              className="absolute top-0 left-0 pointer-events-none"
-              style={{ zIndex: 10 }}
-            />
+            </div>
           </div>
         </div>
       </DialogContent>

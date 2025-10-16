@@ -169,23 +169,19 @@ const PaperCheckingInterface = () => {
       Object.entries(fabricCanvases.current).forEach(([pageNum, canvas]) => {
         if (canvas) {
           const objects = canvas.getObjects();
+          console.log(`Page ${pageNum} has ${objects.length} objects`);
+          
           objects.forEach((obj: any) => {
+            // Properly serialize Fabric.js object
+            const fabricObject = obj.toJSON();
+            
             annotationData.push({
               answer_sheet_id: selectedPaper.id,
               page_number: parseInt(pageNum),
               annotation_type: obj.type || "path",
               x_position: obj.left || 0,
               y_position: obj.top || 0,
-              content: JSON.stringify({
-                width: obj.width,
-                height: obj.height,
-                scaleX: obj.scaleX,
-                scaleY: obj.scaleY,
-                fill: obj.fill,
-                stroke: obj.stroke,
-                strokeWidth: obj.strokeWidth,
-                path: obj.path,
-              }),
+              content: JSON.stringify(fabricObject),
               color: obj.stroke || obj.fill || annotationColor,
               created_by: currentUserId,
             });
@@ -193,22 +189,36 @@ const PaperCheckingInterface = () => {
         }
       });
 
-      // Delete existing annotations
-      await supabase
+      console.log(`Saving ${annotationData.length} annotations`, annotationData);
+
+      // Delete existing annotations for this answer sheet
+      const { error: deleteError } = await supabase
         .from("answer_sheet_annotations")
         .delete()
         .eq("answer_sheet_id", selectedPaper.id);
 
-      // Insert new annotations
-      if (annotationData.length > 0) {
-        const { error } = await supabase
-          .from("answer_sheet_annotations")
-          .insert(annotationData);
-
-        if (error) throw error;
+      if (deleteError) {
+        console.error("Delete error:", deleteError);
+        throw deleteError;
       }
 
-      toast.success("Annotations saved successfully");
+      // Insert new annotations
+      if (annotationData.length > 0) {
+        const { data, error } = await supabase
+          .from("answer_sheet_annotations")
+          .insert(annotationData)
+          .select();
+
+        if (error) {
+          console.error("Insert error:", error);
+          throw error;
+        }
+        
+        console.log("Successfully saved annotations:", data);
+        toast.success(`${annotationData.length} annotation(s) saved successfully`);
+      } else {
+        toast.info("No annotations to save");
+      }
     } catch (error) {
       console.error("Error saving annotations:", error);
       toast.error("Failed to save annotations");

@@ -81,6 +81,8 @@ const PaperCheckingInterface = () => {
   const [totalObtainedMarks, setTotalObtainedMarks] = useState<number>(0);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [assignedQuestions, setAssignedQuestions] = useState<number[]>([]);
+  const [marksPerAssignedQuestion, setMarksPerAssignedQuestion] = useState<Record<number, number>>({});
 
   // Get current user profile ID
   // useEffect(() => {
@@ -135,6 +137,38 @@ const PaperCheckingInterface = () => {
 
     fetchIds();
   }, [user?.id]);
+  
+  // Load assignment for the selected paper and current teacher
+  useEffect(() => {
+    const loadAssignment = async () => {
+      if (!selectedPaper || !currentTeacherId) {
+        setAssignedQuestions([]);
+        setMarksPerAssignedQuestion({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("exam_teacher_assignments")
+        .select("assigned_questions, marks_per_question")
+        .eq("exam_id", selectedPaper.exam_id)
+        .eq("teacher_id", currentTeacherId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to load assignment:", error);
+        toast.error("Could not load your question assignment");
+        setAssignedQuestions([]);
+        setMarksPerAssignedQuestion({});
+        return;
+      }
+
+      const mq = (data?.marks_per_question as any) || {};
+      setAssignedQuestions(data?.assigned_questions || []);
+      setMarksPerAssignedQuestion(mq);
+    };
+
+    loadAssignment();
+  }, [selectedPaper, currentTeacherId]);
   // Fetch answer sheets assigned to current teacher
   const { answerSheets, loading } = useAnswerSheets(
     currentTeacherId || undefined,
@@ -453,9 +487,11 @@ const PaperCheckingInterface = () => {
     setScale(Math.min(Math.max(newScale, 0.5), 3.0));
   };
 
-  const handleQuestionMarks = (questionNumber: string, marks: number) => {
-    setMarks((prev) => ({ ...prev, [questionNumber]: marks }));
-    calculateTotal();
+  const handleQuestionMarks = (questionNumber: string, inputMarks: number) => {
+    const qNum = parseInt(questionNumber);
+    const max = marksPerAssignedQuestion[qNum] ?? Infinity;
+    const clamped = Math.max(0, Math.min(inputMarks, max));
+    setMarks((prev) => ({ ...prev, [questionNumber]: clamped }));
   };
 
   const handleQuestionComment = (questionNumber: string, comment: string) => {
@@ -463,9 +499,19 @@ const PaperCheckingInterface = () => {
   };
 
   const calculateTotal = () => {
-    const total = Object.values(marks).reduce((sum, mark) => sum + mark, 0);
+    const total = Object.entries(marks)
+      .filter(([q]) => assignedQuestions.includes(parseInt(q)))
+      .reduce((sum, [, mark]) => sum + (mark || 0), 0);
     setTotalObtainedMarks(total);
   };
+
+  // Recalculate total when marks or assigned questions change
+  useEffect(() => {
+    const total = Object.entries(marks)
+      .filter(([q]) => assignedQuestions.includes(parseInt(q)))
+      .reduce((sum, [, mark]) => sum + (mark || 0), 0);
+    setTotalObtainedMarks(total);
+  }, [marks, assignedQuestions]);
 
   const handleSavePaper = async () => {
     if (!selectedPaper || !currentTeacherId) {
@@ -490,18 +536,23 @@ const PaperCheckingInterface = () => {
 
       if (updateError) throw updateError;
 
-      // Save individual question marks
-      const questionMarks = Object.entries(marks).map(
-        ([questionNumber, obtainedMarks]) => ({
+      // Save only assigned questions with correct max marks
+      const questionMarks = assignedQuestions.map((qNum) => {
+        const obtained = marks[qNum] ?? 0;
+        const max = marksPerAssignedQuestion[qNum] ?? 0;
+        if (obtained > max) {
+          throw new Error(`Marks for Q${qNum} exceed the allowed ${max}`);
+        }
+        return {
           answer_sheet_id: selectedPaper.id,
-          question_number: parseInt(questionNumber),
-          obtained_marks: obtainedMarks,
-          max_marks: 10, // Default max marks per question
+          question_number: qNum,
+          obtained_marks: obtained,
+          max_marks: max,
           graded_by: currentTeacherId,
           graded_at: new Date().toISOString(),
-          comments: comments[questionNumber] || null,
-        })
-      );
+          comments: comments[qNum] || null,
+        };
+      });
 
       const { error: marksError } = await supabase
         .from("answer_sheet_questions")
@@ -819,7 +870,10 @@ const PaperCheckingInterface = () => {
                                 if (el) canvasRefs.current[pageNumber] = el;
                               }}
                               className="absolute top-0 left-0 pointer-events-auto"
-                              style={{ zIndex: 10 }}
+                              style={{ 
+                                zIndex: 100,
+                                cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer"
+                              }}
                             />
                           </div>
                         </div>
@@ -834,7 +888,7 @@ const PaperCheckingInterface = () => {
                 <CardHeader>
                   <CardTitle>Grade Paper</CardTitle>
                   <CardDescription>
-                    Enter marks and comments for each question
+                    Enter marks and comments for your assigned questions only
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -842,49 +896,55 @@ const PaperCheckingInterface = () => {
                     {/* Quick grade inputs for common questions */}
                     <ScrollArea className="h-96 pr-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Array.from({ length: 20 }, (_, i) => i + 1).map(
-                          (questionNumber) => (
-                            <div key={questionNumber} className="space-y-2">
-                              <Label>Question {questionNumber}</Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  type="number"
-                                  placeholder="Marks"
-                                  value={marks[questionNumber] || ""}
-                                  onChange={(e) =>
-                                    handleQuestionMarks(
-                                      questionNumber.toString(),
-                                      parseFloat(e.target.value) || 0
-                                    )
-                                  }
-                                  className="w-20"
-                                />
-                                <Input
-                                  placeholder="Comment (optional)"
-                                  value={comments[questionNumber] || ""}
-                                  onChange={(e) =>
-                                    handleQuestionComment(
-                                      questionNumber.toString(),
-                                      e.target.value
-                                    )
-                                  }
-                                  className="flex-1"
-                                />
-                              </div>
-                            </div>
-                          )
+                        {assignedQuestions.length === 0 && (
+                          <p className="text-sm text-muted-foreground">No questions assigned to you for this exam.</p>
                         )}
+                        {assignedQuestions.map((questionNumber) => (
+                          <div key={questionNumber} className="space-y-2">
+                            <Label>
+                              Question {questionNumber} (Max {marksPerAssignedQuestion[questionNumber] ?? "-"})
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="number"
+                                placeholder="Marks"
+                                value={marks[questionNumber] ?? ""}
+                                onChange={(e) =>
+                                  handleQuestionMarks(
+                                    questionNumber.toString(),
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                className="w-24"
+                                min={0}
+                                max={marksPerAssignedQuestion[questionNumber] ?? undefined}
+                              />
+                              <Input
+                                placeholder="Comment (optional)"
+                                value={comments[questionNumber] || ""}
+                                onChange={(e) =>
+                                  handleQuestionComment(
+                                    questionNumber.toString(),
+                                    e.target.value
+                                  )
+                                }
+                                className="flex-1"
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </ScrollArea>
 
                     <div className="flex justify-between items-center pt-4 border-t">
                       <div className="text-lg font-semibold">
-                        Total Marks: {totalObtainedMarks} /{" "}
-                        {selectedPaper.total_marks || 100}
+                        Total Marks (assigned): {totalObtainedMarks} /{" "}
+                        {assignedQuestions.reduce((s, q) => s + (marksPerAssignedQuestion[q] ?? 0), 0)}
                       </div>
                       <Button
                         onClick={handleSavePaper}
                         className="flex items-center gap-2"
+                        disabled={assignedQuestions.length === 0}
                       >
                         <Save className="w-4 h-4" />
                         Save & Submit Grade

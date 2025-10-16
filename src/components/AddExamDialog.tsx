@@ -29,6 +29,7 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
     start_time: '',
     duration: '',
     totalMarks: '',
+    totalQuestions: '',
     instructions: ''
   });
 
@@ -83,6 +84,13 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
     if (!teacher) return;
 
     const questions = currentQuestions.split(',').map(q => parseInt(q.trim())).filter(q => !isNaN(q));
+
+    // Optional: Validate within totalQuestions if provided
+    const totalQ = parseInt(examData.totalQuestions);
+    if (!isNaN(totalQ) && questions.some(q => q < 1 || q > totalQ)) {
+      toast.error(`Questions must be between 1 and ${totalQ}`);
+      return;
+    }
     const marksPerQuestion: Record<number, number> = {};
     
     const marksArray = currentMarks.split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m));
@@ -95,6 +103,16 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
     questions.forEach((q, index) => {
       marksPerQuestion[q] = marksArray[index];
     });
+
+    // Validate total marks sum across all assignments does not exceed exam total
+    const assignmentSum = questions.reduce((s, q, i) => s + (marksArray[i] || 0), 0);
+    const currentSum = teacherAssignments.reduce((sum, a) => sum + a.assignedQuestions.reduce((s, q) => s + (a.marksPerQuestion[q] || 0), 0), 0);
+    const grand = assignmentSum + currentSum;
+    const examTotal = parseInt(examData.totalMarks);
+    if (!isNaN(examTotal) && grand > examTotal) {
+      toast.error('Assigned marks exceed exam total marks');
+      return;
+    }
 
     const newAssignment: ExamTeacherAssignment = {
       teacherId: teacher.id,
@@ -116,7 +134,7 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
 
   const handleSubmit = async () => {
     if (!examData.name || !examData.subject_id || !examData.date || !examData.start_time || 
-        !examData.duration || !examData.totalMarks) {
+        !examData.duration || !examData.totalMarks || !examData.totalQuestions) {
       toast.error('Please fill in all exam details');
       return;
     }
@@ -143,6 +161,7 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
           start_time: examData.start_time,
           duration_minutes: parseInt(examData.duration),
           total_marks: parseInt(examData.totalMarks),
+          total_questions: parseInt(examData.totalQuestions),
           instructions: examData.instructions,
           status: 'scheduled',
           created_by: currentUserId
@@ -176,6 +195,7 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
         start_time: '',
         duration: '',
         totalMarks: '',
+        totalQuestions: '',
         instructions: ''
       });
       setSelectedFile(null);
@@ -286,6 +306,16 @@ const AddExamDialog = ({ isOpen, onOpenChange, onExamAdded }: AddExamDialogProps
                     value={examData.totalMarks}
                     onChange={(e) => setExamData({ ...examData, totalMarks: e.target.value })}
                     placeholder="100"
+                  />
+                </div>
+                <div className="space-y-2 col-span-3">
+                  <Label htmlFor="totalQuestions">Total Questions</Label>
+                  <Input
+                    id="totalQuestions"
+                    type="number"
+                    value={examData.totalQuestions}
+                    onChange={(e) => setExamData({ ...examData, totalQuestions: e.target.value })}
+                    placeholder="e.g. 10"
                   />
                 </div>
               </div>

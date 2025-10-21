@@ -55,7 +55,11 @@ import { Pen, Eraser, Type, Circle as CircleIcon } from "lucide-react";
 // Set up PDF.js worker using jsDelivr CDN for proper CORS support
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-const PaperCheckingInterface = () => {
+interface PaperCheckingInterfaceProps {
+  preSelectedPaper?: any;
+}
+
+const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProps) => {
   const { user } = useAuth();
   const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
   const fabricCanvases = useRef<{ [key: number]: FabricCanvas | null }>({});
@@ -137,6 +141,13 @@ const PaperCheckingInterface = () => {
 
     fetchIds();
   }, [user?.id]);
+
+  // Set preselected paper if provided
+  useEffect(() => {
+    if (preSelectedPaper) {
+      setSelectedPaper(preSelectedPaper);
+    }
+  }, [preSelectedPaper]);
   
   // Load assignment for the selected paper and current teacher
   useEffect(() => {

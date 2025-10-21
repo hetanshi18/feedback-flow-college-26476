@@ -24,6 +24,8 @@ const TeacherDashboard = () => {
   const [viewingAnswerSheet, setViewingAnswerSheet] = useState<any>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+  const [gradingAnswerSheet, setGradingAnswerSheet] = useState<any>(null);
+  const [isGradingOpen, setIsGradingOpen] = useState(false);
 
   // Get current teacher ID from teachers table
   useEffect(() => {
@@ -511,6 +513,7 @@ const TeacherDashboard = () => {
                         </div>
                         <Button
                           size="sm"
+                          variant="outline"
                           onClick={() => {
                             setViewingAnswerSheet(paper);
                             setIsViewerOpen(true);
@@ -518,6 +521,16 @@ const TeacherDashboard = () => {
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           View
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setGradingAnswerSheet(paper);
+                            setIsGradingOpen(true);
+                          }}
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          Grade
                         </Button>
                       </div>
                     </div>
@@ -708,6 +721,20 @@ const TeacherDashboard = () => {
         open={isViewerOpen}
         onOpenChange={setIsViewerOpen}
       />
+
+      <Dialog open={isGradingOpen} onOpenChange={setIsGradingOpen}>
+        <DialogContent className="max-w-[95vw] h-[95vh] p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle>Grade Answer Sheet</DialogTitle>
+            <DialogDescription>
+              {gradingAnswerSheet?.student?.name} - {gradingAnswerSheet?.exam?.subject?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="h-full overflow-hidden">
+            {isGradingOpen && <PaperCheckingInterface preSelectedPaper={gradingAnswerSheet} />}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

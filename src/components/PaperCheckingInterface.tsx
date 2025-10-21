@@ -204,7 +204,12 @@ const PaperCheckingInterface = () => {
   };
 
   // Map Fabric.js object types to database annotation types
-  const mapFabricTypeToDbType = (fabricType: string): string => {
+  const mapFabricTypeToDbType = (fabricType: string, customData?: any): string => {
+    // Check if this is a preset annotation with custom metadata
+    if (customData?.annotationType) {
+      return customData.annotationType;
+    }
+    
     const typeMap: { [key: string]: string } = {
       path: "pen",
       ellipse: "circle",
@@ -237,7 +242,7 @@ const PaperCheckingInterface = () => {
             annotationData.push({
               answer_sheet_id: selectedPaper.id,
               page_number: parseInt(pageNum),
-              annotation_type: mapFabricTypeToDbType(obj.type || "path"),
+              annotation_type: mapFabricTypeToDbType(obj.type || "path", obj),
               x_position: obj.left || 0,
               y_position: obj.top || 0,
               content: JSON.stringify(fabricObject),
@@ -400,6 +405,7 @@ const PaperCheckingInterface = () => {
           scaleX: 1,
           scaleY: 1,
         });
+        tickPath.set('annotationType', 'check');
         canvas.add(tickPath);
         break;
 
@@ -423,6 +429,8 @@ const PaperCheckingInterface = () => {
           selectable: true,
           strokeLineCap: "round",
         });
+        crossPath1.set('annotationType', 'cross');
+        crossPath2.set('annotationType', 'cross');
         canvas.add(crossPath1, crossPath2);
         break;
 
@@ -438,6 +446,7 @@ const PaperCheckingInterface = () => {
           strokeWidth: 3,
           selectable: true,
         });
+        oval.set('annotationType', 'circle');
         canvas.add(oval);
         break;
 
@@ -452,6 +461,7 @@ const PaperCheckingInterface = () => {
           selectable: true,
           editable: true,
         });
+        textbox.set('annotationType', 'text');
         canvas.add(textbox);
         canvas.setActiveObject(textbox);
         textbox.enterEditing();

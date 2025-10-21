@@ -27,6 +27,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnswerSheets } from "@/hooks/useDatabase";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +58,8 @@ import {
   MessageCircle,
   CheckCircle2,
   XCircle,
+  ChevronRight,
+  Menu,
 } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -678,155 +693,394 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Paper Checking Interface</h2>
-        <Badge variant="secondary">{pendingPapers.length} papers pending</Badge>
-      </div>
+  // Group papers by exam
+  const papersByExam = pendingPapers.reduce((acc: any, paper: any) => {
+    const examId = paper.exam_id;
+    if (!acc[examId]) {
+      acc[examId] = {
+        exam: paper.exam,
+        papers: [],
+      };
+    }
+    acc[examId].papers.push(paper);
+    return acc;
+  }, {});
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Papers List */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Pending Papers
-            </CardTitle>
-            <CardDescription>Select a paper to start grading</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingPapers.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                No pending papers to grade
-              </p>
-            ) : (
-              pendingPapers.map((paper) => (
-                <Card
-                  key={paper.id}
-                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                    selectedPaper?.id === paper.id ? "ring-2 ring-primary" : ""
-                  }`}
-                  onClick={() => setSelectedPaper(paper)}
-                >
-                  <CardContent className="p-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium">{paper.student?.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {paper.exam?.subject?.name} - {paper.exam?.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Uploaded:{" "}
-                        {new Date(paper.upload_date).toLocaleDateString()}
-                      </p>
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        {/* Collapsible Sidebar */}
+        <Sidebar collapsible="icon" className="border-r">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Pending Papers</h3>
+            <SidebarTrigger />
+          </div>
+          <SidebarContent>
+            <ScrollArea className="h-[calc(100vh-80px)]">
+              {Object.keys(papersByExam).length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No pending papers
+                </div>
+              ) : (
+                Object.entries(papersByExam).map(([examId, data]: [string, any]) => {
+                  const totalPapers = data.papers.length;
+                  
+                  return (
+                    <SidebarGroup key={examId}>
+                      <SidebarGroupLabel className="px-4 py-2">
+                        <div className="flex flex-col gap-1 w-full">
+                          <span className="font-medium text-sm">
+                            {data.exam?.name || "Unnamed Exam"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {data.exam?.subject?.name}
+                          </span>
+                          <div className="flex gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {totalPapers} pending
+                            </Badge>
+                          </div>
+                        </div>
+                      </SidebarGroupLabel>
+                      <SidebarGroupContent>
+                        <SidebarMenu>
+                          {data.papers.map((paper: any) => (
+                            <SidebarMenuItem key={paper.id}>
+                              <SidebarMenuButton
+                                onClick={() => setSelectedPaper(paper)}
+                                isActive={selectedPaper?.id === paper.id}
+                                className="w-full"
+                              >
+                                <div className="flex flex-col gap-1 w-full">
+                                  <span className="font-medium text-sm">
+                                    {paper.student?.name}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {paper.student?.student_id}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(paper.upload_date).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </SidebarMenu>
+                      </SidebarGroupContent>
+                    </SidebarGroup>
+                  );
+                })
+              )}
+            </ScrollArea>
+          </SidebarContent>
+        </Sidebar>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto">
+          <div className="p-6">
+            <div className="flex items-center gap-4 mb-6">
+              <SidebarTrigger className="lg:hidden" />
+              <div>
+                <h2 className="text-2xl font-bold">Paper Checking Interface</h2>
+                <p className="text-sm text-muted-foreground">
+                  Select a paper from the sidebar to start grading
+                </p>
+              </div>
+            </div>
+            {selectedPaper ? (
+              <div className="space-y-6">
+                {/* PDF Viewer */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex justify-between items-center">
+                        <CardTitle>
+                          Answer Sheet: {selectedPaper.student?.name}
+                        </CardTitle>
+                      </div>
+
+                      {/* Annotation Toolbar */}
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-lg flex-wrap">
+                        <Button
+                          size="sm"
+                          variant={activeTool === "pen" ? "default" : "outline"}
+                          onClick={() => setActiveTool("pen")}
+                          title="Draw"
+                        >
+                          <Pen className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={
+                            activeTool === "eraser" ? "default" : "outline"
+                          }
+                          onClick={() => setActiveTool("eraser")}
+                          title="Erase"
+                        >
+                          <Eraser className="h-4 w-4" />
+                        </Button>
+
+                        <div className="w-px h-6 bg-border" />
+
+                        {/* Preset Annotations (Red Only) */}
+                        <Button
+                          size="sm"
+                          variant={activeTool === "tick" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("tick");
+                            toast.info("Click on the PDF to place a tick mark");
+                          }}
+                          title="Add Tick Mark (Red)"
+                          className={activeTool === "tick" ? "" : "text-red-600 hover:text-red-700"}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeTool === "cross" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("cross");
+                            toast.info("Click on the PDF to place a cross mark");
+                          }}
+                          title="Add Cross Mark (Red)"
+                          className={activeTool === "cross" ? "" : "text-red-600 hover:text-red-700"}
+                        >
+                          <XIcon className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeTool === "oval" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("oval");
+                            toast.info("Click on the PDF to place an oval");
+                          }}
+                          title="Add Oval (Red)"
+                          className={activeTool === "oval" ? "" : "text-red-600 hover:text-red-700"}
+                        >
+                          <CircleIcon className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeTool === "textbox" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("textbox");
+                            toast.info("Click on the PDF to add a text box");
+                          }}
+                          title="Add Text Box (Red)"
+                          className={activeTool === "textbox" ? "" : "text-red-600 hover:text-red-700"}
+                        >
+                          <Type className="h-4 w-4" />
+                        </Button>
+
+                        <div className="w-px h-6 bg-border" />
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={saveAnnotationsToDB}
+                          title="Save annotations"
+                        >
+                          <Save className="h-4 w-4 mr-1" />
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* PDF Controls */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => changePage(-1)}
+                            disabled={pageNumber <= 1}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </Button>
+                          <span className="text-sm">
+                            Page {pageNumber} of {numPages}
+                          </span>
+                          <Button
+                            size="sm"
+                            onClick={() => changePage(1)}
+                            disabled={pageNumber >= numPages}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => changeScale(scale - 0.1)}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </Button>
+                          <span className="text-sm">
+                            {Math.round(scale * 100)}%
+                          </span>
+                          <Button
+                            size="sm"
+                            onClick={() => changeScale(scale + 0.1)}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* PDF Display with Annotation Canvas */}
+                      <div className="border rounded-lg overflow-hidden bg-white">
+                        {pdfError ? (
+                          <div className="flex flex-col items-center justify-center p-8 text-center">
+                            <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+                            <p className="text-red-500 mb-2">Error loading PDF</p>
+                            <p className="text-sm text-muted-foreground">
+                              {pdfError}
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPdfError(null)}
+                              className="mt-4"
+                            >
+                              Retry
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-center">
+                            <div className="relative inline-block">
+                              <Document
+                                file={getPdfUrl(selectedPaper.file_url)}
+                                onLoadSuccess={onDocumentLoadSuccess}
+                                onLoadError={onDocumentLoadError}
+                                loading={
+                                  <div className="flex items-center justify-center p-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                    <span className="ml-2">Loading PDF...</span>
+                                  </div>
+                                }
+                              >
+                                <Page
+                                  pageNumber={pageNumber}
+                                  scale={scale}
+                                  renderTextLayer={false}
+                                  renderAnnotationLayer={false}
+                                  onRenderSuccess={(page: any) => {
+                                    const viewport = page.getViewport({ scale });
+                                    setPageWidth(viewport.width);
+                                    setPageHeight(viewport.height);
+                                    console.log(`PDF page rendered: ${viewport.width}x${viewport.height}`);
+                                    // Initialize after DOM updates
+                                    setTimeout(
+                                      () => initializeFabricCanvas(pageNumber),
+                                      100
+                                    );
+                                  }}
+                                />
+                              </Document>
+                              <canvas
+                                ref={(el) => {
+                                  if (el) {
+                                    canvasRefs.current[pageNumber] = el;
+                                    console.log("Canvas element ref set for page", pageNumber, el);
+                                  }
+                                }}
+                                className="absolute top-0 left-0"
+                                style={{ 
+                                  zIndex: 10,
+                                  width: `${pageWidth}px`,
+                                  height: `${pageHeight}px`,
+                                  cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer",
+                                  pointerEvents: "auto"
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </CardContent>
-        </Card>
 
-        {/* PDF Viewer and Grading Interface */}
-        <div className="lg:col-span-2 space-y-6">
-          {selectedPaper ? (
-            <>
-              {/* PDF Viewer */}
+                {/* Grading Form */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Grade Paper</CardTitle>
+                    <CardDescription>
+                      Enter marks and comments for your assigned questions only
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Quick grade inputs for common questions */}
+                      <ScrollArea className="h-96 pr-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {assignedQuestions.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No questions assigned to you for this exam.</p>
+                          )}
+                          {assignedQuestions.map((questionNumber) => (
+                            <div key={questionNumber} className="space-y-2">
+                              <Label>
+                                Question {questionNumber} (Max {marksPerAssignedQuestion[questionNumber] ?? "-"})
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="number"
+                                  placeholder="Marks"
+                                  value={marks[questionNumber] ?? ""}
+                                  onChange={(e) =>
+                                    handleQuestionMarks(
+                                      questionNumber.toString(),
+                                      parseFloat(e.target.value) || 0
+                                    )
+                                  }
+                                  className="w-24"
+                                  min={0}
+                                  max={marksPerAssignedQuestion[questionNumber] ?? undefined}
+                                />
+                                <Input
+                                  placeholder="Comment (optional)"
+                                  value={comments[questionNumber] || ""}
+                                  onChange={(e) =>
+                                    handleQuestionComment(
+                                      questionNumber.toString(),
+                                      e.target.value
+                                    )
+                                  }
+                                  className="flex-1"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+
+                      <div className="flex justify-between items-center pt-4 border-t">
+                        <div className="text-lg font-semibold">
+                          Total Marks (assigned): {totalObtainedMarks} /{" "}
+                          {assignedQuestions.reduce((s, q) => s + (marksPerAssignedQuestion[q] ?? 0), 0)}
+                        </div>
+                        <Button
+                          onClick={handleSavePaper}
+                          className="flex items-center gap-2"
+                          disabled={assignedQuestions.length === 0}
+                        >
+                          <Save className="w-4 h-4" />
+                          Save & Submit Grade
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
               <Card>
                 <CardHeader>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-center">
-                      <CardTitle>
-                        Answer Sheet: {selectedPaper.student?.name}
-                      </CardTitle>
-                    </div>
-
-                    {/* Annotation Toolbar */}
-                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg flex-wrap">
-                      <Button
-                        size="sm"
-                        variant={activeTool === "pen" ? "default" : "outline"}
-                        onClick={() => setActiveTool("pen")}
-                        title="Draw"
-                      >
-                        <Pen className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={
-                          activeTool === "eraser" ? "default" : "outline"
-                        }
-                        onClick={() => setActiveTool("eraser")}
-                        title="Erase"
-                      >
-                        <Eraser className="h-4 w-4" />
-                      </Button>
-
-                      <div className="w-px h-6 bg-border" />
-
-                      {/* Preset Annotations (Red Only) */}
-                      <Button
-                        size="sm"
-                        variant={activeTool === "tick" ? "default" : "outline"}
-                        onClick={() => {
-                          setActiveTool("tick");
-                          toast.info("Click on the PDF to place a tick mark");
-                        }}
-                        title="Add Tick Mark (Red)"
-                        className={activeTool === "tick" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "cross" ? "default" : "outline"}
-                        onClick={() => {
-                          setActiveTool("cross");
-                          toast.info("Click on the PDF to place a cross mark");
-                        }}
-                        title="Add Cross Mark (Red)"
-                        className={activeTool === "cross" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <XIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "oval" ? "default" : "outline"}
-                        onClick={() => {
-                          setActiveTool("oval");
-                          toast.info("Click on the PDF to place an oval");
-                        }}
-                        title="Add Oval (Red)"
-                        className={activeTool === "oval" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <CircleIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "textbox" ? "default" : "outline"}
-                        onClick={() => {
-                          setActiveTool("textbox");
-                          toast.info("Click on the PDF to add a text box");
-                        }}
-                        title="Add Text Box (Red)"
-                        className={activeTool === "textbox" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <Type className="h-4 w-4" />
-                      </Button>
-
-                      <div className="w-px h-6 bg-border" />
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={saveAnnotationsToDB}
-                        title="Save annotations"
-                      >
-                        <Save className="h-4 w-4 mr-1" />
-                        Save
-                      </Button>
-                    </div>
-                  </div>
+                  <CardTitle>Sample Answer Sheet</CardTitle>
+                  <CardDescription>
+                    Select a paper from the sidebar to start grading, or view the
+                    sample below
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -870,8 +1124,8 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
                       </div>
                     </div>
 
-                    {/* PDF Display with Annotation Canvas */}
-                    <div className="border rounded-lg overflow-hidden bg-white">
+                    {/* Sample PDF Display */}
+                    <div className="relative border rounded-lg overflow-hidden">
                       {pdfError ? (
                         <div className="flex flex-col items-center justify-center p-8 text-center">
                           <FileText className="w-16 h-16 text-muted-foreground mb-4" />
@@ -889,230 +1143,35 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex justify-center">
-                          <div className="relative inline-block">
-                            <Document
-                              file={getPdfUrl(selectedPaper.file_url)}
-                              onLoadSuccess={onDocumentLoadSuccess}
-                              onLoadError={onDocumentLoadError}
-                              loading={
-                                <div className="flex items-center justify-center p-8">
-                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                  <span className="ml-2">Loading PDF...</span>
-                                </div>
-                              }
-                            >
-                              <Page
-                                pageNumber={pageNumber}
-                                scale={scale}
-                                renderTextLayer={false}
-                                renderAnnotationLayer={false}
-                                onRenderSuccess={(page: any) => {
-                                  const viewport = page.getViewport({ scale });
-                                  setPageWidth(viewport.width);
-                                  setPageHeight(viewport.height);
-                                  console.log(`PDF page rendered: ${viewport.width}x${viewport.height}`);
-                                  // Initialize after DOM updates
-                                  setTimeout(
-                                    () => initializeFabricCanvas(pageNumber),
-                                    100
-                                  );
-                                }}
-                              />
-                            </Document>
-                            <canvas
-                              ref={(el) => {
-                                if (el) {
-                                  canvasRefs.current[pageNumber] = el;
-                                  console.log("Canvas element ref set for page", pageNumber, el);
-                                }
-                              }}
-                              className="absolute top-0 left-0"
-                              style={{ 
-                                zIndex: 10,
-                                width: `${pageWidth}px`,
-                                height: `${pageHeight}px`,
-                                cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer",
-                                pointerEvents: "auto"
-                              }}
-                            />
-                          </div>
-                        </div>
+                        <Document
+                          file="/sample-answer-sheet.pdf"
+                          onLoadSuccess={onDocumentLoadSuccess}
+                          onLoadError={onDocumentLoadError}
+                          className="flex justify-center"
+                          loading={
+                            <div className="flex items-center justify-center p-8">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                              <span className="ml-2">Loading PDF...</span>
+                            </div>
+                          }
+                        >
+                          <Page
+                            pageNumber={pageNumber}
+                            scale={scale}
+                            renderTextLayer={false}
+                            renderAnnotationLayer={false}
+                          />
+                        </Document>
                       )}
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Grading Form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Grade Paper</CardTitle>
-                  <CardDescription>
-                    Enter marks and comments for your assigned questions only
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Quick grade inputs for common questions */}
-                    <ScrollArea className="h-96 pr-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {assignedQuestions.length === 0 && (
-                          <p className="text-sm text-muted-foreground">No questions assigned to you for this exam.</p>
-                        )}
-                        {assignedQuestions.map((questionNumber) => (
-                          <div key={questionNumber} className="space-y-2">
-                            <Label>
-                              Question {questionNumber} (Max {marksPerAssignedQuestion[questionNumber] ?? "-"})
-                            </Label>
-                            <div className="flex gap-2">
-                              <Input
-                                type="number"
-                                placeholder="Marks"
-                                value={marks[questionNumber] ?? ""}
-                                onChange={(e) =>
-                                  handleQuestionMarks(
-                                    questionNumber.toString(),
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                className="w-24"
-                                min={0}
-                                max={marksPerAssignedQuestion[questionNumber] ?? undefined}
-                              />
-                              <Input
-                                placeholder="Comment (optional)"
-                                value={comments[questionNumber] || ""}
-                                onChange={(e) =>
-                                  handleQuestionComment(
-                                    questionNumber.toString(),
-                                    e.target.value
-                                  )
-                                }
-                                className="flex-1"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-
-                    <div className="flex justify-between items-center pt-4 border-t">
-                      <div className="text-lg font-semibold">
-                        Total Marks (assigned): {totalObtainedMarks} /{" "}
-                        {assignedQuestions.reduce((s, q) => s + (marksPerAssignedQuestion[q] ?? 0), 0)}
-                      </div>
-                      <Button
-                        onClick={handleSavePaper}
-                        className="flex items-center gap-2"
-                        disabled={assignedQuestions.length === 0}
-                      >
-                        <Save className="w-4 h-4" />
-                        Save & Submit Grade
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Sample Answer Sheet</CardTitle>
-                <CardDescription>
-                  Select a paper from the list to start grading, or view the
-                  sample below
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* PDF Controls */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => changePage(-1)}
-                        disabled={pageNumber <= 1}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <span className="text-sm">
-                        Page {pageNumber} of {numPages}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => changePage(1)}
-                        disabled={pageNumber >= numPages}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => changeScale(scale - 0.1)}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <span className="text-sm">
-                        {Math.round(scale * 100)}%
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => changeScale(scale + 0.1)}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Sample PDF Display */}
-                  <div className="relative border rounded-lg overflow-hidden">
-                    {pdfError ? (
-                      <div className="flex flex-col items-center justify-center p-8 text-center">
-                        <FileText className="w-16 h-16 text-muted-foreground mb-4" />
-                        <p className="text-red-500 mb-2">Error loading PDF</p>
-                        <p className="text-sm text-muted-foreground">
-                          {pdfError}
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPdfError(null)}
-                          className="mt-4"
-                        >
-                          Retry
-                        </Button>
-                      </div>
-                    ) : (
-                      <Document
-                        file="/sample-answer-sheet.pdf"
-                        onLoadSuccess={onDocumentLoadSuccess}
-                        onLoadError={onDocumentLoadError}
-                        className="flex justify-center"
-                        loading={
-                          <div className="flex items-center justify-center p-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                            <span className="ml-2">Loading PDF...</span>
-                          </div>
-                        }
-                      >
-                        <Page
-                          pageNumber={pageNumber}
-                          scale={scale}
-                          renderTextLayer={false}
-                          renderAnnotationLayer={false}
-                        />
-                      </Document>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+            )}
+          </div>
+        </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 

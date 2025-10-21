@@ -291,16 +291,24 @@ const PaperCheckingInterface = () => {
 
   const initializeFabricCanvas = (pageNum: number) => {
     const canvasEl = canvasRefs.current[pageNum];
-    if (!canvasEl) return;
+    console.log("initializeFabricCanvas called for page", pageNum, "canvas element:", canvasEl);
+    
+    if (!canvasEl) {
+      console.error("Canvas element not found for page", pageNum);
+      return;
+    }
 
     // Ensure canvas element matches PDF page size exactly
     canvasEl.width = pageWidth;
     canvasEl.height = pageHeight;
     canvasEl.style.width = `${pageWidth}px`;
     canvasEl.style.height = `${pageHeight}px`;
+    
+    console.log(`Canvas dimensions set to ${pageWidth}x${pageHeight}`);
 
     // Dispose existing canvas if present to avoid stacking
     if (fabricCanvases.current[pageNum]) {
+      console.log("Disposing existing Fabric canvas for page", pageNum);
       fabricCanvases.current[pageNum]?.dispose();
       fabricCanvases.current[pageNum] = null;
     }
@@ -312,6 +320,8 @@ const PaperCheckingInterface = () => {
       selection: true,
       backgroundColor: "transparent",
     });
+    
+    console.log("Fabric canvas created:", fabricCanvas);
 
     if (fabricCanvas.freeDrawingBrush) {
       fabricCanvas.freeDrawingBrush.color =
@@ -321,9 +331,15 @@ const PaperCheckingInterface = () => {
 
     // Click handler: place preset annotations at exact click point
     fabricCanvas.on("mouse:down", (opt: any) => {
+      console.log("Canvas mouse:down event fired!");
       const currentTool = activeToolRef.current;
+      console.log("Current tool:", currentTool);
+      
       // Only handle preset annotations when not in drawing mode
-      if (currentTool === "pen" || currentTool === "eraser") return;
+      if (currentTool === "pen" || currentTool === "eraser") {
+        console.log("Pen or eraser mode, skipping preset annotation");
+        return;
+      }
       
       // Prevent text selection
       opt.e.preventDefault();
@@ -336,6 +352,8 @@ const PaperCheckingInterface = () => {
       if (currentTool === "oval") addPresetAnnotation("oval", pointer.x, pointer.y, pageNum);
       if (currentTool === "textbox") addPresetAnnotation("textbox", pointer.x, pointer.y, pageNum);
     });
+    
+    console.log("Mouse:down event handler attached");
 
     fabricCanvases.current[pageNum] = fabricCanvas;
 
@@ -344,7 +362,7 @@ const PaperCheckingInterface = () => {
       (ann) => ann.page_number === pageNum
     );
     
-    console.log(`Initialized canvas for page ${pageNum}, size: ${pageWidth}x${pageHeight}`);
+    console.log(`✓ Initialized Fabric canvas for page ${pageNum}, size: ${pageWidth}x${pageHeight}, annotations: ${pageAnnotations.length}`);
   };
 
   const addPresetAnnotation = (
@@ -492,9 +510,9 @@ const PaperCheckingInterface = () => {
   };
 
   const changePage = (offset: number) => {
-    setPageNumber((prevPageNumber) =>
-      Math.min(Math.max(prevPageNumber + offset, 1), numPages)
-    );
+    const newPage = Math.min(Math.max(pageNumber + offset, 1), numPages);
+    console.log(`Changing from page ${pageNumber} to page ${newPage}`);
+    setPageNumber(newPage);
   };
 
   const changeScale = (newScale: number) => {
@@ -885,12 +903,18 @@ const PaperCheckingInterface = () => {
                             </Document>
                             <canvas
                               ref={(el) => {
-                                if (el) canvasRefs.current[pageNumber] = el;
+                                if (el) {
+                                  canvasRefs.current[pageNumber] = el;
+                                  console.log("Canvas element ref set for page", pageNumber, el);
+                                }
                               }}
                               className="absolute top-0 left-0 pointer-events-auto"
                               style={{ 
                                 zIndex: 100,
-                                cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer"
+                                width: `${pageWidth}px`,
+                                height: `${pageHeight}px`,
+                                cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer",
+                                border: "2px solid red" // Debug: make canvas visible
                               }}
                             />
                           </div>

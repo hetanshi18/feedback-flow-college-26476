@@ -869,10 +869,7 @@ const PaperCheckingInterface = () => {
                         </div>
                       ) : (
                         <div className="flex justify-center">
-                          <div
-                            className="relative"
-                            style={{ width: pageWidth, height: pageHeight }}
-                          >
+                          <div className="relative inline-block">
                             <Document
                               file={getPdfUrl(selectedPaper.file_url)}
                               onLoadSuccess={onDocumentLoadSuccess}
@@ -893,10 +890,11 @@ const PaperCheckingInterface = () => {
                                   const viewport = page.getViewport({ scale });
                                   setPageWidth(viewport.width);
                                   setPageHeight(viewport.height);
+                                  console.log(`PDF page rendered: ${viewport.width}x${viewport.height}`);
                                   // Initialize after DOM updates
                                   setTimeout(
                                     () => initializeFabricCanvas(pageNumber),
-                                    0
+                                    100
                                   );
                                 }}
                               />
@@ -908,13 +906,13 @@ const PaperCheckingInterface = () => {
                                   console.log("Canvas element ref set for page", pageNumber, el);
                                 }
                               }}
-                              className="absolute top-0 left-0 pointer-events-auto"
+                              className="absolute top-0 left-0"
                               style={{ 
-                                zIndex: 100,
+                                zIndex: 10,
                                 width: `${pageWidth}px`,
                                 height: `${pageHeight}px`,
                                 cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer",
-                                border: "2px solid red" // Debug: make canvas visible
+                                pointerEvents: "auto"
                               }}
                             />
                           </div>

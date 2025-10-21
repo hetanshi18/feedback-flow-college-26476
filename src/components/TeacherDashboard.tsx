@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,7 +11,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAnswerSheets, useGrievances, useTeacherExams } from '@/hooks/useDatabase';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { FileText, CheckCircle, Clock, Eye, MessageSquare, AlertTriangle, Star, Upload } from 'lucide-react';
+import { FileText, CheckCircle, Clock, Eye, MessageSquare, AlertTriangle, Star, Upload, BookOpen, ChevronRight } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import PaperCheckingInterface from './PaperCheckingInterface';
 import UploadedAnswerSheets from './UploadedAnswerSheets';
 import StudentAnswerSheetViewer from './StudentAnswerSheetViewer';
@@ -22,6 +23,7 @@ const TeacherDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [viewingAnswerSheet, setViewingAnswerSheet] = useState<any>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
   // Get current teacher ID from teachers table
   useEffect(() => {
@@ -57,6 +59,21 @@ const TeacherDashboard = () => {
   const pendingPapers = answerSheets.filter(sheet => sheet.grading_status === 'pending');
   const completedPapers = answerSheets.filter(sheet => sheet.grading_status === 'completed');
   const pendingGrievances = grievances.filter(g => g.status === 'pending');
+
+  // Calculate statistics for pie chart
+  const totalPapers = answerSheets.length;
+  const checkedPapers = completedPapers.length;
+  const uncheckedPapers = pendingPapers.length;
+
+  const pieData = [
+    { name: 'Checked', value: checkedPapers, color: 'hsl(var(--success))' },
+    { name: 'Unchecked', value: uncheckedPapers, color: 'hsl(var(--warning))' },
+  ];
+
+  // Get papers for selected exam
+  const selectedExamPapers = selectedExamId 
+    ? answerSheets.filter(sheet => sheet.exam_id === selectedExamId)
+    : [];
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -118,6 +135,10 @@ const TeacherDashboard = () => {
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Star className="w-4 h-4" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="my-exams" className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4" />
+            My Exams
           </TabsTrigger>
           <TabsTrigger value="grading" className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
@@ -273,6 +294,244 @@ const TeacherDashboard = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="my-exams" className="space-y-6">
+          {/* Statistics Section */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Pie Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Grading Progress</CardTitle>
+                <CardDescription>Overview of paper checking status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {totalPapers > 0 ? (
+                  <div className="space-y-4">
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold">{totalPapers}</p>
+                        <p className="text-sm text-muted-foreground">Total Papers</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-success">{checkedPapers}</p>
+                        <p className="text-sm text-muted-foreground">Checked</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-warning">{uncheckedPapers}</p>
+                        <p className="text-sm text-muted-foreground">Unchecked</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                    No papers assigned yet
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Stats</CardTitle>
+                <CardDescription>Your teaching workload</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <BookOpen className="h-8 w-8 text-primary" />
+                      <div>
+                        <p className="font-semibold">Assigned Exams</p>
+                        <p className="text-sm text-muted-foreground">Total exams you're evaluating</p>
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold">{teacherExams.length}</p>
+                  </div>
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-8 w-8 text-warning" />
+                      <div>
+                        <p className="font-semibold">Pending Papers</p>
+                        <p className="text-sm text-muted-foreground">Papers awaiting grading</p>
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold">{uncheckedPapers}</p>
+                  </div>
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <MessageSquare className="h-8 w-8 text-destructive" />
+                      <div>
+                        <p className="font-semibold">Pending Grievances</p>
+                        <p className="text-sm text-muted-foreground">Student concerns to address</p>
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold">{pendingGrievances.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Exams List */}
+          {!selectedExamId ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Assigned Exams</CardTitle>
+                <CardDescription>Click on an exam to view and grade answer sheets</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {teacherExams.map((assignment) => {
+                    const examPapers = answerSheets.filter(sheet => sheet.exam_id === assignment.exam.id);
+                    const examPending = examPapers.filter(sheet => sheet.grading_status === 'pending').length;
+                    const examCompleted = examPapers.filter(sheet => sheet.grading_status === 'completed').length;
+                    
+                    return (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:border-primary hover:bg-accent/50 cursor-pointer transition-colors"
+                        onClick={() => setSelectedExamId(assignment.exam.id)}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <BookOpen className="h-5 w-5 text-primary" />
+                            <div>
+                              <h4 className="font-semibold">{assignment.exam?.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {assignment.exam?.subject?.name} • {assignment.exam?.subject?.department?.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Questions: {assignment.assigned_questions?.join(', ')}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{examPapers.length} Papers</p>
+                            <div className="flex gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                {examCompleted}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                {examPending}
+                              </Badge>
+                            </div>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {teacherExams.length === 0 && (
+                    <div className="text-center py-12">
+                      <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                      <p className="text-muted-foreground">No exams assigned to you yet</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            // Show papers for selected exam
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>
+                      {teacherExams.find(e => e.exam.id === selectedExamId)?.exam?.name}
+                    </CardTitle>
+                    <CardDescription>
+                      Answer sheets for this exam
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" onClick={() => setSelectedExamId(null)}>
+                    Back to Exams
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {selectedExamPapers.map((paper) => (
+                    <div
+                      key={paper.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <h4 className="font-medium">{paper.student?.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Student ID: {paper.student?.student_id}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Uploaded: {new Date(paper.upload_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          {paper.grading_status === 'completed' ? (
+                            <div>
+                              <p className="text-sm font-medium">
+                                {paper.obtained_marks}/{paper.total_marks} marks
+                              </p>
+                              <Badge className="mt-1 bg-success/10 text-success border-success/20">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Graded
+                              </Badge>
+                            </div>
+                          ) : (
+                            <Badge className="bg-warning/10 text-warning border-warning/20">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setViewingAnswerSheet(paper);
+                            setIsViewerOpen(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {selectedExamPapers.length === 0 && (
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                      <p className="text-muted-foreground">No answer sheets uploaded yet for this exam</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="grading" className="space-y-4">

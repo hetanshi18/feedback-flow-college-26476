@@ -24,6 +24,7 @@ const TeacherDashboard = () => {
   const [viewingAnswerSheet, setViewingAnswerSheet] = useState<any>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+  const [selectedGrievanceExamId, setSelectedGrievanceExamId] = useState<string | null>(null);
   const [gradingAnswerSheet, setGradingAnswerSheet] = useState<any>(null);
   const [isGradingOpen, setIsGradingOpen] = useState(false);
 
@@ -76,6 +77,39 @@ const TeacherDashboard = () => {
   const selectedExamPapers = selectedExamId 
     ? answerSheets.filter(sheet => sheet.exam_id === selectedExamId)
     : [];
+
+  // Group grievances by exam
+  const grievancesByExam = teacherExams.map(examAssignment => {
+    const examGrievances = grievances.filter(g => g.answer_sheet?.exam_id === examAssignment.exam_id);
+    const totalGrievances = examGrievances.length;
+    const checkedGrievances = examGrievances.filter(g => g.status === 'resolved' || g.status === 'rejected').length;
+    const pendingGrievancesCount = examGrievances.filter(g => g.status === 'pending').length;
+    
+    return {
+      exam: examAssignment.exam,
+      grievances: examGrievances,
+      totalGrievances,
+      checkedGrievances,
+      pendingGrievances: pendingGrievancesCount
+    };
+  }).filter(exam => exam.totalGrievances > 0); // Only show exams with grievances
+
+  // Get grievances for selected exam
+  const selectedExamGrievances = selectedGrievanceExamId
+    ? grievances.filter(g => g.answer_sheet?.exam_id === selectedGrievanceExamId)
+    : [];
+
+  // Calculate statistics for selected exam
+  const selectedExamGrievanceStats = selectedGrievanceExamId ? {
+    total: selectedExamGrievances.length,
+    checked: selectedExamGrievances.filter(g => g.status === 'resolved' || g.status === 'rejected').length,
+    pending: selectedExamGrievances.filter(g => g.status === 'pending').length
+  } : null;
+
+  const selectedExamGrievancePieData = selectedExamGrievanceStats ? [
+    { name: 'Checked', value: selectedExamGrievanceStats.checked, color: 'hsl(var(--success))' },
+    { name: 'Pending', value: selectedExamGrievanceStats.pending, color: 'hsl(var(--warning))' },
+  ].filter(item => item.value > 0) : [];
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -575,144 +609,258 @@ const TeacherDashboard = () => {
         </TabsContent>
 
         <TabsContent value="grievances" className="space-y-4">
-          <h2 className="text-xl font-semibold">Student Grievances</h2>
-          
-          <div className="space-y-4">
-            {grievances.map((grievance) => (
-              <Card key={grievance.id}>
+          {!selectedGrievanceExamId ? (
+            <div className="space-y-6">
+              <Card>
                 <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium">{grievance.student?.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {grievance.answer_sheet?.exam?.subject?.name} - Question {grievance.question_number}
-                        {grievance.sub_question && ` (${grievance.sub_question})`}
-                      </p>
-                    </div>
-                    <Badge className={getStatusColor(grievance.status)}>
-                      <div className="flex items-center gap-1">
-                        {getStatusIcon(grievance.status)}
-                        {grievance.status.replace('_', ' ')}
-                      </div>
-                    </Badge>
-                  </div>
+                  <CardTitle>Grievances by Exam</CardTitle>
+                  <CardDescription>Select an exam to view and manage grievances</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium">Current Marks: {grievance.current_marks}</p>
-                    <p className="text-sm font-medium text-muted-foreground mt-1">Student's Concern:</p>
-                    <p className="text-sm mt-1">{grievance.grievance_text}</p>
-                  </div>
-
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setViewingAnswerSheet(grievance.answer_sheet);
-                      setIsViewerOpen(true);
-                    }}
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Paper
-                  </Button>
-
-                  {grievance.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button size="sm">Approve & Update Marks</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Approve Grievance</DialogTitle>
-                            <DialogDescription>
-                              Update the marks and provide a response to the student
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <Label>Updated Marks</Label>
-                              <input
-                                type="number"
-                                className="w-full p-2 border rounded-md"
-                                placeholder={String(grievance.current_marks)}
-                                id={`updated-marks-${grievance.id}`}
-                              />
+                <CardContent>
+                  {grievancesByExam.length > 0 ? (
+                    <div className="space-y-3">
+                      {grievancesByExam.map((item) => (
+                        <div
+                          key={item.exam.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedGrievanceExamId(item.exam.id)}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold">{item.exam.name}</h3>
+                              <Badge variant="outline">{item.exam.subject?.name}</Badge>
                             </div>
-                            <div>
-                              <Label>Response to Student</Label>
-                              <Textarea
-                                placeholder="Explain the mark adjustment..."
-                                id={`response-${grievance.id}`}
-                              />
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {item.exam.department?.name} - {new Date(item.exam.exam_date).toLocaleDateString()}
+                            </p>
+                            <div className="flex gap-4 mt-2 text-sm">
+                              <span>Total: <strong>{item.totalGrievances}</strong></span>
+                              <span className="text-success">Checked: <strong>{item.checkedGrievances}</strong></span>
+                              <span className="text-warning">Pending: <strong>{item.pendingGrievances}</strong></span>
                             </div>
-                            <Button
-                              onClick={() => {
-                                const marksInput = document.getElementById(`updated-marks-${grievance.id}`) as HTMLInputElement;
-                                const responseInput = document.getElementById(`response-${grievance.id}`) as HTMLTextAreaElement;
-                                const updatedMarks = parseFloat(marksInput.value) || grievance.current_marks;
-                                handleGrievanceAction(grievance.id, 'approve', responseInput.value || 'Marks updated after review', updatedMarks);
-                              }}
-                            >
-                              Approve & Update
-                            </Button>
                           </div>
-                        </DialogContent>
-                      </Dialog>
-
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">Reject</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Reject Grievance</DialogTitle>
-                            <DialogDescription>
-                              Provide a reason for rejecting this grievance
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <Label>Response to Student</Label>
-                              <Textarea
-                                placeholder="Explain why the original marks are correct..."
-                                id={`reject-response-${grievance.id}`}
-                              />
-                            </div>
-                            <Button
-                              variant="destructive"
-                              onClick={() => {
-                                const responseInput = document.getElementById(`reject-response-${grievance.id}`) as HTMLTextAreaElement;
-                                handleGrievanceAction(grievance.id, 'reject', responseInput.value || 'The original marks are correct');
-                              }}
-                            >
-                              Reject Grievance
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                      <p className="text-muted-foreground">No grievances submitted yet</p>
                     </div>
                   )}
-
-                  {grievance.teacher_response && (
-                    <div className="bg-muted/50 p-3 rounded-lg">
-                      <p className="text-sm font-medium">Your Response:</p>
-                      <p className="text-sm mt-1">{grievance.teacher_response}</p>
-                      {grievance.updated_marks && (
-                        <p className="text-sm mt-2 font-medium">
-                          Updated Marks: {String(grievance.updated_marks)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="text-xs text-muted-foreground">
-                    Submitted: {new Date(grievance.submitted_at).toLocaleDateString()}
-                  </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedGrievanceExamId(null)}
+              >
+                ← Back to Exams
+              </Button>
+
+              {/* Statistics for selected exam */}
+              {selectedExamGrievanceStats && selectedExamGrievanceStats.total > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Grievance Statistics</CardTitle>
+                    <CardDescription>
+                      {teacherExams.find(e => e.exam_id === selectedGrievanceExamId)?.exam?.name}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {/* Pie Chart */}
+                      <div>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <PieChart>
+                            <Pie
+                              data={selectedExamGrievancePieData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={70}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {selectedExamGrievancePieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center p-4 border rounded-lg">
+                          <p className="text-2xl font-bold">{selectedExamGrievanceStats.total}</p>
+                          <p className="text-sm text-muted-foreground">Total</p>
+                        </div>
+                        <div className="text-center p-4 border rounded-lg">
+                          <p className="text-2xl font-bold text-success">{selectedExamGrievanceStats.checked}</p>
+                          <p className="text-sm text-muted-foreground">Checked</p>
+                        </div>
+                        <div className="text-center p-4 border rounded-lg">
+                          <p className="text-2xl font-bold text-warning">{selectedExamGrievanceStats.pending}</p>
+                          <p className="text-sm text-muted-foreground">Pending</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Grievances List */}
+              <div className="space-y-4">
+                {selectedExamGrievances.map((grievance) => (
+                  <Card key={grievance.id}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{grievance.student?.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Question {grievance.question_number}
+                            {grievance.sub_question && ` (${grievance.sub_question})`}
+                          </p>
+                        </div>
+                        <Badge className={getStatusColor(grievance.status)}>
+                          <div className="flex items-center gap-1">
+                            {getStatusIcon(grievance.status)}
+                            {grievance.status.replace('_', ' ')}
+                          </div>
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <p className="text-sm font-medium">Current Marks: {grievance.current_marks}</p>
+                        <p className="text-sm font-medium text-muted-foreground mt-1">Student's Concern:</p>
+                        <p className="text-sm mt-1">{grievance.grievance_text}</p>
+                      </div>
+
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setViewingAnswerSheet(grievance.answer_sheet);
+                          setIsViewerOpen(true);
+                        }}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Paper
+                      </Button>
+
+                      {grievance.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button size="sm">Approve & Update Marks</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Approve Grievance</DialogTitle>
+                                <DialogDescription>
+                                  Update the marks and provide a response to the student
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div>
+                                  <Label>Updated Marks</Label>
+                                  <input
+                                    type="number"
+                                    className="w-full p-2 border rounded-md"
+                                    placeholder={String(grievance.current_marks)}
+                                    id={`updated-marks-${grievance.id}`}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Response to Student</Label>
+                                  <Textarea
+                                    placeholder="Explain the mark adjustment..."
+                                    id={`response-${grievance.id}`}
+                                  />
+                                </div>
+                                <Button
+                                  onClick={() => {
+                                    const marksInput = document.getElementById(`updated-marks-${grievance.id}`) as HTMLInputElement;
+                                    const responseInput = document.getElementById(`response-${grievance.id}`) as HTMLTextAreaElement;
+                                    const updatedMarks = parseFloat(marksInput.value) || grievance.current_marks;
+                                    handleGrievanceAction(grievance.id, 'approve', responseInput.value || 'Marks updated after review', updatedMarks);
+                                  }}
+                                >
+                                  Approve & Update
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">Reject</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Reject Grievance</DialogTitle>
+                                <DialogDescription>
+                                  Provide a reason for rejecting this grievance
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div>
+                                  <Label>Response to Student</Label>
+                                  <Textarea
+                                    placeholder="Explain why the original marks are correct..."
+                                    id={`reject-response-${grievance.id}`}
+                                  />
+                                </div>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => {
+                                    const responseInput = document.getElementById(`reject-response-${grievance.id}`) as HTMLTextAreaElement;
+                                    handleGrievanceAction(grievance.id, 'reject', responseInput.value || 'The original marks are correct');
+                                  }}
+                                >
+                                  Reject Grievance
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      )}
+
+                      {grievance.teacher_response && (
+                        <div className="bg-muted/50 p-3 rounded-lg">
+                          <p className="text-sm font-medium">Your Response:</p>
+                          <p className="text-sm mt-1">{grievance.teacher_response}</p>
+                          {grievance.updated_marks && (
+                            <p className="text-sm mt-2 font-medium">
+                              Updated Marks: {String(grievance.updated_marks)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="text-xs text-muted-foreground">
+                        Submitted: {new Date(grievance.submitted_at).toLocaleDateString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {selectedExamGrievances.length === 0 && (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                    <p className="text-muted-foreground">No grievances for this exam</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

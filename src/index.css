@@ -6,6 +6,18 @@
 All colors MUST be HSL.
 */
 
+/* Syncfusion PDF Viewer styles */
+@import '@syncfusion/ej2-base/styles/material.css';
+@import '@syncfusion/ej2-buttons/styles/material.css';
+@import '@syncfusion/ej2-dropdowns/styles/material.css';
+@import '@syncfusion/ej2-inputs/styles/material.css';
+@import '@syncfusion/ej2-navigations/styles/material.css';
+@import '@syncfusion/ej2-popups/styles/material.css';
+@import '@syncfusion/ej2-splitbuttons/styles/material.css';
+@import '@syncfusion/ej2-pdfviewer/styles/material.css';
+@import '@syncfusion/ej2-notifications/styles/material.css';
+@import '@syncfusion/ej2-lists/styles/material.css';
+
 @layer base {
   :root {
     --background: 210 20% 98%;
@@ -128,4 +140,18 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom Syncfusion overrides for dark mode compatibility */
+.e-pdfviewer .e-toolbar {
+  background: hsl(var(--background));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.e-pdfviewer .e-toolbar .e-btn {
+  color: hsl(var(--foreground));
+}
+
+.e-pdfviewer {
+  font-family: inherit;
 }

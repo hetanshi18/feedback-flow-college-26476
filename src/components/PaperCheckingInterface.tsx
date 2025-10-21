@@ -9,17 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -37,72 +27,46 @@ import {
   Save,
   Plus,
   Minus,
-  Eye,
-  Upload,
   Check,
   X as XIcon,
   PenTool,
-  MessageCircle,
-  CheckCircle2,
-  XCircle,
+  Circle as CircleIcon,
+  Type,
+  Eraser,
 } from "lucide-react";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
-import { Canvas as FabricCanvas, Path, Ellipse, IText, Rect } from "fabric";
-import { Pen, Eraser, Type, Circle as CircleIcon } from "lucide-react";
+import {
+  PdfViewerComponent,
+  Toolbar,
+  Magnification,
+  Navigation,
+  LinkAnnotation,
+  BookmarkView,
+  ThumbnailView,
+  Print,
+  TextSelection,
+  Annotation,
+  FormFields,
+  FormDesigner,
+  Inject,
+} from "@syncfusion/ej2-react-pdfviewer";
+import { registerLicense } from "@syncfusion/ej2-base";
 
-// Set up PDF.js worker using jsDelivr CDN for proper CORS support
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Register Syncfusion license (you can use community license or trial)
+registerLicense("ORg4AjUWIQA/Gnt2UVhhQlVFfV5AQmBIYVp/TGpJfl96cVxMZVVBJAtUQF1hTX5Vd0VjWntfdHJUT2Zb");
 
 const PaperCheckingInterface = () => {
   const { user } = useAuth();
-  const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
-  const fabricCanvases = useRef<{ [key: number]: FabricCanvas | null }>({});
-  const activeToolRef = useRef<"pen" | "eraser" | "tick" | "cross" | "oval" | "textbox">("pen");
-  const [activeTool, setActiveTool] = useState<
-    "pen" | "eraser" | "tick" | "cross" | "oval" | "textbox"
-  >("pen");
-  const [annotationColor] = useState("#FF0000"); // Fixed to red
+  const pdfViewerRef = useRef<PdfViewerComponent>(null);
   const [currentTeacherId, setCurrentTeacherId] = useState<string | null>(null);
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   const [selectedPaper, setSelectedPaper] = useState<any>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.0);
-  const [pageWidth, setPageWidth] = useState<number>(800);
-  const [pageHeight, setPageHeight] = useState<number>(1100);
   const [marks, setMarks] = useState<{ [key: string]: number }>({});
   const [comments, setComments] = useState<{ [key: string]: string }>({});
-  const [annotations, setAnnotations] = useState<any[]>([]);
-  const [annotationMode, setAnnotationMode] = useState<
-    "none" | "mark" | "comment"
-  >("none");
   const [totalObtainedMarks, setTotalObtainedMarks] = useState<number>(0);
-  const [pdfError, setPdfError] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [assignedQuestions, setAssignedQuestions] = useState<number[]>([]);
   const [marksPerAssignedQuestion, setMarksPerAssignedQuestion] = useState<Record<number, number>>({});
 
-  // Get current user profile ID
-  // useEffect(() => {
-  //   const fetchCurrentUser = async () => {
-  //     if (user?.id) {
-  //       const { data } = await supabase
-  //         .from('profiles')
-  //         .select('id')
-  //         .eq('user_id', user.id)
-  //         .single();
-
-  //       if (data) {
-  //         setCurrentUserId(data.id);
-  //       }
-  //     }
-  //   };
-  //   fetchCurrentUser();
-  // }, [user?.id]);
-
-  // Get current teacher ID (for grading) and profile ID (for created_by)
+  // Get current teacher ID and profile ID
   useEffect(() => {
     const fetchIds = async () => {
       if (!user?.id) return;
@@ -138,7 +102,7 @@ const PaperCheckingInterface = () => {
     fetchIds();
   }, [user?.id]);
   
-  // Load assignment for the selected paper and current teacher
+  // Load assignment for the selected paper
   useEffect(() => {
     const loadAssignment = async () => {
       if (!selectedPaper || !currentTeacherId) {
@@ -169,6 +133,7 @@ const PaperCheckingInterface = () => {
 
     loadAssignment();
   }, [selectedPaper, currentTeacherId]);
+
   // Fetch answer sheets assigned to current teacher
   const { answerSheets, loading } = useAnswerSheets(
     currentTeacherId || undefined,
@@ -182,76 +147,90 @@ const PaperCheckingInterface = () => {
 
   // Load annotations when paper is selected
   useEffect(() => {
-    if (selectedPaper) {
-      loadAnnotationsFromDB();
+    if (selectedPaper && pdfViewerRef.current) {
+      loadPdfWithAnnotations();
     }
   }, [selectedPaper]);
 
-  const loadAnnotationsFromDB = async () => {
-    if (!selectedPaper) return;
+  const loadPdfWithAnnotations = async () => {
+    if (!selectedPaper || !pdfViewerRef.current) return;
 
     try {
+      const pdfUrl = getPdfUrl(selectedPaper.file_url);
+      pdfViewerRef.current.load(pdfUrl, null);
+
+      // Load existing annotations
       const { data, error } = await supabase
         .from("answer_sheet_annotations")
         .select("*")
         .eq("answer_sheet_id", selectedPaper.id);
 
       if (error) throw error;
-      setAnnotations(data || []);
+
+      // Import annotations to PDF viewer
+      if (data && data.length > 0 && pdfViewerRef.current) {
+        // Syncfusion expects annotations in a specific format
+        const syncfusionAnnotations = data.map((ann) => {
+          try {
+            const content = typeof ann.content === 'string' ? JSON.parse(ann.content) : ann.content;
+            return {
+              ...content,
+              pageNumber: ann.page_number,
+            };
+          } catch {
+            return null;
+          }
+        }).filter(Boolean);
+
+        // Import annotations
+        if (syncfusionAnnotations.length > 0) {
+          pdfViewerRef.current.importAnnotation(syncfusionAnnotations);
+        }
+      }
     } catch (error) {
       console.error("Error loading annotations:", error);
     }
   };
 
-  // Map Fabric.js object types to database annotation types
-  const mapFabricTypeToDbType = (fabricType: string): string => {
-    const typeMap: { [key: string]: string } = {
-      path: "pen",
-      ellipse: "circle",
-      "i-text": "text",
-      text: "text",
-      rect: "highlight",
-    };
-    return typeMap[fabricType] || "pen";
-  };
-
   const saveAnnotationsToDB = async () => {
-    if (!selectedPaper || !currentProfileId) {
+    if (!selectedPaper || !currentProfileId || !pdfViewerRef.current) {
       toast.error("Cannot save annotations");
       return;
     }
 
     try {
-      const annotationData: any[] = [];
+      // Export all annotations from Syncfusion PDF viewer
+      const annotationsData = await pdfViewerRef.current.exportAnnotationsAsObject();
+      
+      if (!annotationsData || (annotationsData as any[]).length === 0) {
+        toast.info("No annotations to save");
+        return;
+      }
 
-      // Collect all canvas objects
-      Object.entries(fabricCanvases.current).forEach(([pageNum, canvas]) => {
-        if (canvas) {
-          const objects = canvas.getObjects();
-          console.log(`Page ${pageNum} has ${objects.length} objects`);
+      // Map Syncfusion annotation types to database types
+      const mapAnnotationType = (type: string): string => {
+        const typeMap: { [key: string]: string } = {
+          'FreeText': 'text',
+          'Ink': 'pen',
+          'Circle': 'circle',
+          'Line': 'check',
+          'Stamp': 'check',
+          'Highlight': 'highlight',
+        };
+        return typeMap[type] || 'pen';
+      };
 
-          objects.forEach((obj: any) => {
-            // Properly serialize Fabric.js object
-            const fabricObject = obj.toJSON();
-
-            annotationData.push({
-              answer_sheet_id: selectedPaper.id,
-              page_number: parseInt(pageNum),
-              annotation_type: mapFabricTypeToDbType(obj.type || "path"),
-              x_position: obj.left || 0,
-              y_position: obj.top || 0,
-              content: JSON.stringify(fabricObject),
-              color: obj.stroke || obj.fill || annotationColor,
-              created_by: currentProfileId,
-            });
-          });
-        }
-      });
-
-      console.log(
-        `Saving ${annotationData.length} annotations`,
-        annotationData
-      );
+      // Transform to database format
+      const annotationData = (annotationsData as any[]).map((ann: any) => ({
+        answer_sheet_id: selectedPaper.id,
+        page_number: ann.pageNumber || 1,
+        annotation_type: mapAnnotationType(ann.shapeAnnotationType || ann.type || 'Ink'),
+        x_position: ann.bounds?.X || 0,
+        y_position: ann.bounds?.Y || 0,
+        content: JSON.stringify(ann),
+        color: ann.strokeColor || ann.fontColor || '#FF0000',
+        created_by: currentProfileId,
+      }));
 
       // Delete existing annotations for this answer sheet
       const { error: deleteError } = await supabase
@@ -259,232 +238,37 @@ const PaperCheckingInterface = () => {
         .delete()
         .eq("answer_sheet_id", selectedPaper.id);
 
-      if (deleteError) {
-        console.error("Delete error:", deleteError);
-        throw deleteError;
-      }
+      if (deleteError) throw deleteError;
 
       // Insert new annotations
-      if (annotationData.length > 0) {
-        const { data, error } = await supabase
-          .from("answer_sheet_annotations")
-          .insert(annotationData)
-          .select();
+      const { error: insertError } = await supabase
+        .from("answer_sheet_annotations")
+        .insert(annotationData)
+        .select();
 
-        if (error) {
-          console.error("Insert error:", error);
-          throw error;
-        }
+      if (insertError) throw insertError;
 
-        console.log("Successfully saved annotations:", data);
-        toast.success(
-          `${annotationData.length} annotation(s) saved successfully`
-        );
-      } else {
-        toast.info("No annotations to save");
-      }
+      toast.success(`${annotationData.length} annotation(s) saved successfully`);
     } catch (error) {
       console.error("Error saving annotations:", error);
       toast.error("Failed to save annotations");
     }
   };
 
-  const initializeFabricCanvas = (pageNum: number) => {
-    const canvasEl = canvasRefs.current[pageNum];
-    if (!canvasEl) return;
-
-    // Ensure canvas element matches PDF page size
-    canvasEl.width = pageWidth;
-    canvasEl.height = pageHeight;
-    canvasEl.style.width = `${pageWidth}px`;
-    canvasEl.style.height = `${pageHeight}px`;
-
-    // Dispose existing canvas if present to avoid stacking
-    if (fabricCanvases.current[pageNum]) {
-      fabricCanvases.current[pageNum]?.dispose();
-      fabricCanvases.current[pageNum] = null;
-    }
-
-    const fabricCanvas = new FabricCanvas(canvasEl, {
-      isDrawingMode: activeTool === "pen" || activeTool === "eraser",
-      width: pageWidth,
-      height: pageHeight,
-      selection: true,
-    });
-
-    if (fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush.color =
-        activeTool === "eraser" ? "#FFFFFF" : annotationColor;
-      fabricCanvas.freeDrawingBrush.width = activeTool === "eraser" ? 20 : 2;
-    }
-
-    // Click handler: place preset annotations at exact click point
-    fabricCanvas.on("mouse:down", (opt: any) => {
-      const currentTool = activeToolRef.current;
-      // Only handle preset annotations when not in drawing mode
-      if (currentTool === "pen" || currentTool === "eraser") return;
-      
-      const pointer = fabricCanvas.getPointer(opt.e);
-      const x = pointer.x;
-      const y = pointer.y;
-      
-      if (currentTool === "tick") addPresetAnnotation("tick", x, y, pageNum);
-      if (currentTool === "cross") addPresetAnnotation("cross", x, y, pageNum);
-      if (currentTool === "oval") addPresetAnnotation("oval", x, y, pageNum);
-      if (currentTool === "textbox") addPresetAnnotation("textbox", x, y, pageNum);
-    });
-
-    fabricCanvases.current[pageNum] = fabricCanvas;
-
-    // Load existing annotations for this page (future: reconstruct from DB)
-    const pageAnnotations = annotations.filter(
-      (ann) => ann.page_number === pageNum
-    );
-  };
-
-  const addPresetAnnotation = (
-    type: "tick" | "cross" | "oval" | "textbox",
-    atX?: number,
-    atY?: number,
-    pageNum?: number
-  ) => {
-    const targetPage = pageNum ?? pageNumber;
-    const canvas = fabricCanvases.current[targetPage];
-    if (!canvas) return;
-
-    const redColor = "#FF0000";
-    const centerX = atX ?? canvas.width! / 2;
-    const centerY = atY ?? canvas.height! / 2;
-
-    switch (type) {
-      case "tick":
-        // Draw a checkmark using Path
-        const tickPath = new Path("M 10 50 L 40 80 L 90 20", {
-          stroke: redColor,
-          strokeWidth: 6,
-          fill: "",
-          left: centerX - 50,
-          top: centerY - 50,
-          selectable: true,
-          strokeLineCap: "round",
-          strokeLineJoin: "round",
-        });
-        canvas.add(tickPath);
-        break;
-
-      case "cross":
-        // Draw an X using two paths
-        const crossPath1 = new Path("M 20 20 L 80 80", {
-          stroke: redColor,
-          strokeWidth: 6,
-          fill: "",
-          left: centerX - 50,
-          top: centerY - 50,
-          selectable: true,
-          strokeLineCap: "round",
-        });
-        const crossPath2 = new Path("M 80 20 L 20 80", {
-          stroke: redColor,
-          strokeWidth: 6,
-          fill: "",
-          left: centerX - 50,
-          top: centerY - 50,
-          selectable: true,
-          strokeLineCap: "round",
-        });
-        canvas.add(crossPath1, crossPath2);
-        break;
-
-      case "oval":
-        // Draw an oval/ellipse
-        const oval = new Ellipse({
-          left: centerX - 40,
-          top: centerY - 30,
-          rx: 40,
-          ry: 30,
-          fill: "transparent",
-          stroke: redColor,
-          strokeWidth: 3,
-          selectable: true,
-        });
-        canvas.add(oval);
-        break;
-
-      case "textbox":
-        // Add an editable text box
-        const textbox = new IText("Text", {
-          left: centerX - 50,
-          top: centerY - 20,
-          fill: redColor,
-          fontSize: 24,
-          fontFamily: "Arial",
-          selectable: true,
-          editable: true,
-        });
-        canvas.add(textbox);
-        canvas.setActiveObject(textbox);
-        textbox.enterEditing();
-        break;
-    }
-
-    canvas.renderAll();
-  };
-
-  useEffect(() => {
-    // Update the ref whenever activeTool changes
-    activeToolRef.current = activeTool;
-    
-    const canvas = fabricCanvases.current[pageNumber];
-    if (canvas) {
-      canvas.isDrawingMode = activeTool === "pen" || activeTool === "eraser";
-      if (canvas.freeDrawingBrush) {
-        canvas.freeDrawingBrush.color =
-          activeTool === "eraser" ? "#FFFFFF" : annotationColor;
-        canvas.freeDrawingBrush.width = activeTool === "eraser" ? 20 : 2;
-      }
-    }
-  }, [activeTool, annotationColor, pageNumber]);
-
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setPageNumber(1);
-    setPdfError(null);
-  };
-
-  const onDocumentLoadError = (error: Error) => {
-    console.error("PDF load error:", error);
-    setPdfError("Failed to load PDF. Please check the file and try again.");
-  };
-
   const getPdfUrl = (fileUrl: string) => {
     if (!fileUrl) {
-      console.log("No file URL provided, using sample PDF");
       return "/sample-answer-sheet.pdf";
     }
 
-    // If it's already a full URL, return it
     if (fileUrl.startsWith("http")) {
-      console.log("Using full URL:", fileUrl);
       return fileUrl;
     }
 
-    // If it's a Supabase storage path, get the public URL
     const { data } = supabase.storage
       .from("answer-sheets")
       .getPublicUrl(fileUrl);
 
-    console.log("Generated Supabase URL:", data.publicUrl);
     return data.publicUrl;
-  };
-
-  const changePage = (offset: number) => {
-    setPageNumber((prevPageNumber) =>
-      Math.min(Math.max(prevPageNumber + offset, 1), numPages)
-    );
-  };
-
-  const changeScale = (newScale: number) => {
-    setScale(Math.min(Math.max(newScale, 0.5), 3.0));
   };
 
   const handleQuestionMarks = (questionNumber: string, inputMarks: number) => {
@@ -498,14 +282,7 @@ const PaperCheckingInterface = () => {
     setComments((prev) => ({ ...prev, [questionNumber]: comment }));
   };
 
-  const calculateTotal = () => {
-    const total = Object.entries(marks)
-      .filter(([q]) => assignedQuestions.includes(parseInt(q)))
-      .reduce((sum, [, mark]) => sum + (mark || 0), 0);
-    setTotalObtainedMarks(total);
-  };
-
-  // Recalculate total when marks or assigned questions change
+  // Recalculate total when marks change
   useEffect(() => {
     const total = Object.entries(marks)
       .filter(([q]) => assignedQuestions.includes(parseInt(q)))
@@ -536,7 +313,7 @@ const PaperCheckingInterface = () => {
 
       if (updateError) throw updateError;
 
-      // Save only assigned questions with correct max marks
+      // Save question marks
       const questionMarks = assignedQuestions.map((qNum) => {
         const obtained = marks[qNum] ?? 0;
         const max = marksPerAssignedQuestion[qNum] ?? 0;
@@ -560,31 +337,10 @@ const PaperCheckingInterface = () => {
 
       if (marksError) throw marksError;
 
-      // Save annotations if any
-      if (annotations.length > 0) {
-        const annotationData = annotations.map((annotation) => ({
-          answer_sheet_id: selectedPaper.id,
-          page_number: annotation.page,
-          x_position: annotation.x,
-          y_position: annotation.y,
-          annotation_type: annotation.type,
-          content: annotation.content,
-          color: annotation.color || "#000000",
-          created_by: currentProfileId,
-        }));
-
-        const { error: annotationError } = await supabase
-          .from("answer_sheet_annotations")
-          .insert(annotationData);
-
-        if (annotationError) throw annotationError;
-      }
-
       toast.success("Paper graded and saved successfully!");
       setSelectedPaper(null);
       setMarks({});
       setComments({});
-      setAnnotations([]);
       setTotalObtainedMarks(0);
     } catch (error) {
       console.error("Error saving paper:", error);
@@ -592,28 +348,43 @@ const PaperCheckingInterface = () => {
     }
   };
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (annotationMode === "none") return;
+  // Annotation tool handlers
+  const setAnnotationTool = (tool: string) => {
+    if (!pdfViewerRef.current) return;
+    
+    const viewer = pdfViewerRef.current;
+    
+    switch (tool) {
+      case 'pen':
+        viewer.annotation.setAnnotationMode('Ink');
+        break;
+      case 'text':
+        viewer.annotation.setAnnotationMode('FreeText');
+        break;
+      case 'circle':
+        viewer.annotation.setAnnotationMode('Circle');
+        break;
+      case 'line':
+        viewer.annotation.setAnnotationMode('Line');
+        break;
+      case 'eraser':
+        viewer.annotation.setAnnotationMode('None');
+        break;
+      default:
+        viewer.annotation.setAnnotationMode('None');
+    }
+  };
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const addCheckMark = () => {
+    if (!pdfViewerRef.current) return;
+    // Use line annotation for check mark
+    pdfViewerRef.current.annotation.setAnnotationMode('Line');
+  };
 
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-
-    const newAnnotation = {
-      id: Date.now(),
-      page: pageNumber,
-      x: x / scale,
-      y: y / scale,
-      type: annotationMode,
-      content:
-        annotationMode === "comment" ? prompt("Enter comment:") || "" : "",
-      color: annotationMode === "mark" ? "#ff0000" : "#0000ff",
-    };
-
-    setAnnotations((prev) => [...prev, newAnnotation]);
+  const addCrossMark = () => {
+    if (!pdfViewerRef.current) return;
+    // Draw an X using line annotations
+    pdfViewerRef.current.annotation.setAnnotationMode('Line');
   };
 
   if (loading) {
@@ -692,33 +463,28 @@ const PaperCheckingInterface = () => {
                     <div className="flex items-center gap-2 p-2 bg-muted rounded-lg flex-wrap">
                       <Button
                         size="sm"
-                        variant={activeTool === "pen" ? "default" : "outline"}
-                        onClick={() => setActiveTool("pen")}
+                        variant="outline"
+                        onClick={() => setAnnotationTool('pen')}
                         title="Draw"
                       >
-                        <Pen className="h-4 w-4" />
+                        <PenTool className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
-                        variant={
-                          activeTool === "eraser" ? "default" : "outline"
-                        }
-                        onClick={() => setActiveTool("eraser")}
-                        title="Erase"
+                        variant="outline"
+                        onClick={() => setAnnotationTool('eraser')}
+                        title="Delete/Erase"
                       >
                         <Eraser className="h-4 w-4" />
                       </Button>
 
                       <div className="w-px h-6 bg-border" />
 
-                      {/* Preset Annotations (Red Only) */}
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setActiveTool("tick");
-                        }}
-                        title="Add Tick Mark (Red)"
+                        onClick={addCheckMark}
+                        title="Add Check Mark"
                         className="text-red-600 hover:text-red-700"
                       >
                         <Check className="h-4 w-4" />
@@ -726,10 +492,8 @@ const PaperCheckingInterface = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setActiveTool("cross");
-                        }}
-                        title="Add Cross Mark (Red)"
+                        onClick={addCrossMark}
+                        title="Add Cross Mark"
                         className="text-red-600 hover:text-red-700"
                       >
                         <XIcon className="h-4 w-4" />
@@ -737,10 +501,8 @@ const PaperCheckingInterface = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setActiveTool("oval");
-                        }}
-                        title="Add Oval (Red)"
+                        onClick={() => setAnnotationTool('circle')}
+                        title="Add Circle"
                         className="text-red-600 hover:text-red-700"
                       >
                         <CircleIcon className="h-4 w-4" />
@@ -748,10 +510,8 @@ const PaperCheckingInterface = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setActiveTool("textbox");
-                        }}
-                        title="Add Text Box (Red)"
+                        onClick={() => setAnnotationTool('text')}
+                        title="Add Text"
                         className="text-red-600 hover:text-red-700"
                       >
                         <Type className="h-4 w-4" />
@@ -772,113 +532,20 @@ const PaperCheckingInterface = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {/* PDF Controls */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => changePage(-1)}
-                          disabled={pageNumber <= 1}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <span className="text-sm">
-                          Page {pageNumber} of {numPages}
-                        </span>
-                        <Button
-                          size="sm"
-                          onClick={() => changePage(1)}
-                          disabled={pageNumber >= numPages}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => changeScale(scale - 0.1)}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <span className="text-sm">
-                          {Math.round(scale * 100)}%
-                        </span>
-                        <Button
-                          size="sm"
-                          onClick={() => changeScale(scale + 0.1)}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* PDF Display with Annotation Canvas */}
-                    <div className="border rounded-lg overflow-hidden bg-white">
-                      {pdfError ? (
-                        <div className="flex flex-col items-center justify-center p-8 text-center">
-                          <FileText className="w-16 h-16 text-muted-foreground mb-4" />
-                          <p className="text-red-500 mb-2">Error loading PDF</p>
-                          <p className="text-sm text-muted-foreground">
-                            {pdfError}
-                          </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPdfError(null)}
-                            className="mt-4"
-                          >
-                            Retry
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex justify-center">
-                          <div
-                            className="relative"
-                            style={{ width: pageWidth, height: pageHeight }}
-                          >
-                            <Document
-                              file={getPdfUrl(selectedPaper.file_url)}
-                              onLoadSuccess={onDocumentLoadSuccess}
-                              onLoadError={onDocumentLoadError}
-                              loading={
-                                <div className="flex items-center justify-center p-8">
-                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                  <span className="ml-2">Loading PDF...</span>
-                                </div>
-                              }
-                            >
-                              <Page
-                                pageNumber={pageNumber}
-                                scale={scale}
-                                renderTextLayer={false}
-                                renderAnnotationLayer={false}
-                                onRenderSuccess={(page: any) => {
-                                  const viewport = page.getViewport({ scale });
-                                  setPageWidth(viewport.width);
-                                  setPageHeight(viewport.height);
-                                  // Initialize after DOM updates
-                                  setTimeout(
-                                    () => initializeFabricCanvas(pageNumber),
-                                    0
-                                  );
-                                }}
-                              />
-                            </Document>
-                            <canvas
-                              ref={(el) => {
-                                if (el) canvasRefs.current[pageNumber] = el;
-                              }}
-                              className="absolute top-0 left-0 pointer-events-auto"
-                              style={{ 
-                                zIndex: 100,
-                                cursor: activeTool === "pen" ? "crosshair" : activeTool === "eraser" ? "crosshair" : "pointer"
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  <div className="border rounded-lg overflow-hidden bg-white" style={{ height: '600px' }}>
+                    <PdfViewerComponent
+                      ref={pdfViewerRef}
+                      id="pdf-viewer"
+                      documentPath={getPdfUrl(selectedPaper.file_url)}
+                      serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/pdfviewer"
+                      style={{ height: '100%', width: '100%' }}
+                      enableAnnotation={true}
+                      enableFormFields={false}
+                      enableDownload={true}
+                      enablePrint={true}
+                    >
+                      <Inject services={[Toolbar, Magnification, Navigation, Annotation, LinkAnnotation, BookmarkView, ThumbnailView, Print, TextSelection, FormFields, FormDesigner]} />
+                    </PdfViewerComponent>
                   </div>
                 </CardContent>
               </Card>
@@ -893,7 +560,6 @@ const PaperCheckingInterface = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {/* Quick grade inputs for common questions */}
                     <ScrollArea className="h-96 pr-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {assignedQuestions.length === 0 && (
@@ -959,92 +625,23 @@ const PaperCheckingInterface = () => {
               <CardHeader>
                 <CardTitle>Sample Answer Sheet</CardTitle>
                 <CardDescription>
-                  Select a paper from the list to start grading, or view the
-                  sample below
+                  Select a paper from the list to start grading
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {/* PDF Controls */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => changePage(-1)}
-                        disabled={pageNumber <= 1}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <span className="text-sm">
-                        Page {pageNumber} of {numPages}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => changePage(1)}
-                        disabled={pageNumber >= numPages}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => changeScale(scale - 0.1)}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <span className="text-sm">
-                        {Math.round(scale * 100)}%
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => changeScale(scale + 0.1)}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Sample PDF Display */}
-                  <div className="relative border rounded-lg overflow-hidden">
-                    {pdfError ? (
-                      <div className="flex flex-col items-center justify-center p-8 text-center">
-                        <FileText className="w-16 h-16 text-muted-foreground mb-4" />
-                        <p className="text-red-500 mb-2">Error loading PDF</p>
-                        <p className="text-sm text-muted-foreground">
-                          {pdfError}
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPdfError(null)}
-                          className="mt-4"
-                        >
-                          Retry
-                        </Button>
-                      </div>
-                    ) : (
-                      <Document
-                        file="/sample-answer-sheet.pdf"
-                        onLoadSuccess={onDocumentLoadSuccess}
-                        onLoadError={onDocumentLoadError}
-                        className="flex justify-center"
-                        loading={
-                          <div className="flex items-center justify-center p-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                            <span className="ml-2">Loading PDF...</span>
-                          </div>
-                        }
-                      >
-                        <Page
-                          pageNumber={pageNumber}
-                          scale={scale}
-                          renderTextLayer={false}
-                          renderAnnotationLayer={false}
-                        />
-                      </Document>
-                    )}
-                  </div>
+                <div className="border rounded-lg overflow-hidden bg-white" style={{ height: '600px' }}>
+                  <PdfViewerComponent
+                    id="sample-pdf-viewer"
+                    documentPath="/sample-answer-sheet.pdf"
+                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/pdfviewer"
+                    style={{ height: '100%', width: '100%' }}
+                    enableAnnotation={false}
+                    enableFormFields={false}
+                    enableDownload={false}
+                    enablePrint={false}
+                  >
+                    <Inject services={[Toolbar, Magnification, Navigation, LinkAnnotation, BookmarkView, ThumbnailView, Print, TextSelection]} />
+                  </PdfViewerComponent>
                 </div>
               </CardContent>
             </Card>

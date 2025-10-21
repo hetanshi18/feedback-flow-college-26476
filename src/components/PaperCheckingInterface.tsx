@@ -293,7 +293,7 @@ const PaperCheckingInterface = () => {
     const canvasEl = canvasRefs.current[pageNum];
     if (!canvasEl) return;
 
-    // Ensure canvas element matches PDF page size
+    // Ensure canvas element matches PDF page size exactly
     canvasEl.width = pageWidth;
     canvasEl.height = pageHeight;
     canvasEl.style.width = `${pageWidth}px`;
@@ -310,6 +310,7 @@ const PaperCheckingInterface = () => {
       width: pageWidth,
       height: pageHeight,
       selection: true,
+      backgroundColor: "transparent",
     });
 
     if (fabricCanvas.freeDrawingBrush) {
@@ -324,22 +325,26 @@ const PaperCheckingInterface = () => {
       // Only handle preset annotations when not in drawing mode
       if (currentTool === "pen" || currentTool === "eraser") return;
       
-      const pointer = fabricCanvas.getPointer(opt.e);
-      const x = pointer.x;
-      const y = pointer.y;
+      // Prevent text selection
+      opt.e.preventDefault();
       
-      if (currentTool === "tick") addPresetAnnotation("tick", x, y, pageNum);
-      if (currentTool === "cross") addPresetAnnotation("cross", x, y, pageNum);
-      if (currentTool === "oval") addPresetAnnotation("oval", x, y, pageNum);
-      if (currentTool === "textbox") addPresetAnnotation("textbox", x, y, pageNum);
+      const pointer = fabricCanvas.getPointer(opt.e);
+      console.log(`Clicked at x:${pointer.x}, y:${pointer.y}, tool:${currentTool}`);
+      
+      if (currentTool === "tick") addPresetAnnotation("tick", pointer.x, pointer.y, pageNum);
+      if (currentTool === "cross") addPresetAnnotation("cross", pointer.x, pointer.y, pageNum);
+      if (currentTool === "oval") addPresetAnnotation("oval", pointer.x, pointer.y, pageNum);
+      if (currentTool === "textbox") addPresetAnnotation("textbox", pointer.x, pointer.y, pageNum);
     });
 
     fabricCanvases.current[pageNum] = fabricCanvas;
 
-    // Load existing annotations for this page (future: reconstruct from DB)
+    // Load existing annotations for this page
     const pageAnnotations = annotations.filter(
       (ann) => ann.page_number === pageNum
     );
+    
+    console.log(`Initialized canvas for page ${pageNum}, size: ${pageWidth}x${pageHeight}`);
   };
 
   const addPresetAnnotation = (
@@ -350,45 +355,53 @@ const PaperCheckingInterface = () => {
   ) => {
     const targetPage = pageNum ?? pageNumber;
     const canvas = fabricCanvases.current[targetPage];
-    if (!canvas) return;
+    if (!canvas) {
+      console.log("No canvas found for page", targetPage);
+      return;
+    }
 
     const redColor = "#FF0000";
+    // Use clicked position directly, or center if not provided
     const centerX = atX ?? canvas.width! / 2;
     const centerY = atY ?? canvas.height! / 2;
+    
+    console.log(`Adding ${type} annotation at x:${centerX}, y:${centerY}`);
 
     switch (type) {
       case "tick":
-        // Draw a checkmark using Path
-        const tickPath = new Path("M 10 50 L 40 80 L 90 20", {
+        // Draw a checkmark - centered on click point
+        const tickPath = new Path("M 5 25 L 20 40 L 45 10", {
           stroke: redColor,
-          strokeWidth: 6,
+          strokeWidth: 5,
           fill: "",
-          left: centerX - 50,
-          top: centerY - 50,
+          left: centerX - 25,
+          top: centerY - 25,
           selectable: true,
           strokeLineCap: "round",
           strokeLineJoin: "round",
+          scaleX: 1,
+          scaleY: 1,
         });
         canvas.add(tickPath);
         break;
 
       case "cross":
-        // Draw an X using two paths
-        const crossPath1 = new Path("M 20 20 L 80 80", {
+        // Draw an X - centered on click point
+        const crossPath1 = new Path("M 10 10 L 40 40", {
           stroke: redColor,
-          strokeWidth: 6,
+          strokeWidth: 5,
           fill: "",
-          left: centerX - 50,
-          top: centerY - 50,
+          left: centerX - 25,
+          top: centerY - 25,
           selectable: true,
           strokeLineCap: "round",
         });
-        const crossPath2 = new Path("M 80 20 L 20 80", {
+        const crossPath2 = new Path("M 40 10 L 10 40", {
           stroke: redColor,
-          strokeWidth: 6,
+          strokeWidth: 5,
           fill: "",
-          left: centerX - 50,
-          top: centerY - 50,
+          left: centerX - 25,
+          top: centerY - 25,
           selectable: true,
           strokeLineCap: "round",
         });
@@ -396,12 +409,12 @@ const PaperCheckingInterface = () => {
         break;
 
       case "oval":
-        // Draw an oval/ellipse
+        // Draw an oval/ellipse - centered on click point
         const oval = new Ellipse({
-          left: centerX - 40,
-          top: centerY - 30,
-          rx: 40,
-          ry: 30,
+          left: centerX - 30,
+          top: centerY - 20,
+          rx: 30,
+          ry: 20,
           fill: "transparent",
           stroke: redColor,
           strokeWidth: 3,
@@ -411,12 +424,12 @@ const PaperCheckingInterface = () => {
         break;
 
       case "textbox":
-        // Add an editable text box
+        // Add an editable text box - centered on click point
         const textbox = new IText("Text", {
-          left: centerX - 50,
-          top: centerY - 20,
+          left: centerX - 25,
+          top: centerY - 15,
           fill: redColor,
-          fontSize: 24,
+          fontSize: 20,
           fontFamily: "Arial",
           selectable: true,
           editable: true,
@@ -428,6 +441,7 @@ const PaperCheckingInterface = () => {
     }
 
     canvas.renderAll();
+    toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} annotation added`);
   };
 
   useEffect(() => {
@@ -714,45 +728,49 @@ const PaperCheckingInterface = () => {
                       {/* Preset Annotations (Red Only) */}
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant={activeTool === "tick" ? "default" : "outline"}
                         onClick={() => {
                           setActiveTool("tick");
+                          toast.info("Click on the PDF to place a tick mark");
                         }}
                         title="Add Tick Mark (Red)"
-                        className="text-red-600 hover:text-red-700"
+                        className={activeTool === "tick" ? "" : "text-red-600 hover:text-red-700"}
                       >
                         <Check className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant={activeTool === "cross" ? "default" : "outline"}
                         onClick={() => {
                           setActiveTool("cross");
+                          toast.info("Click on the PDF to place a cross mark");
                         }}
                         title="Add Cross Mark (Red)"
-                        className="text-red-600 hover:text-red-700"
+                        className={activeTool === "cross" ? "" : "text-red-600 hover:text-red-700"}
                       >
                         <XIcon className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant={activeTool === "oval" ? "default" : "outline"}
                         onClick={() => {
                           setActiveTool("oval");
+                          toast.info("Click on the PDF to place an oval");
                         }}
                         title="Add Oval (Red)"
-                        className="text-red-600 hover:text-red-700"
+                        className={activeTool === "oval" ? "" : "text-red-600 hover:text-red-700"}
                       >
                         <CircleIcon className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant={activeTool === "textbox" ? "default" : "outline"}
                         onClick={() => {
                           setActiveTool("textbox");
+                          toast.info("Click on the PDF to add a text box");
                         }}
                         title="Add Text Box (Red)"
-                        className="text-red-600 hover:text-red-700"
+                        className={activeTool === "textbox" ? "" : "text-red-600 hover:text-red-700"}
                       >
                         <Type className="h-4 w-4" />
                       </Button>

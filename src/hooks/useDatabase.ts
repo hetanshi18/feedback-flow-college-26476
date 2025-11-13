@@ -300,7 +300,7 @@ export const useGrievances = (currentStudentId?: string, role?: string) => {
               total_marks,
               exam:exams(
                 name,
-                subject:subjects(name)
+                subject:subjects(id, name, code, department:departments(name))
               ),
               student:students(name)
             ),
@@ -360,7 +360,7 @@ export const useGrievances = (currentStudentId?: string, role?: string) => {
 
   const updateGrievanceStatus = async (grievanceId: string, status: string, response?: string, updatedMarks?: number) => {
     try {
-      // Get current teacher ID
+      // Get current teacher ID and profile ID
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
       
@@ -371,6 +371,21 @@ export const useGrievances = (currentStudentId?: string, role?: string) => {
         .single();
       
       if (!teacherData) throw new Error('Teacher not found');
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      // First, get the grievance to access answer sheet info
+      const { data: grievance, error: grievanceFetchError } = await supabase
+        .from('grievances')
+        .select('*, answer_sheet_id, question_number, sub_question')
+        .eq('id', grievanceId)
+        .single();
+
+      if (grievanceFetchError || !grievance) throw grievanceFetchError || new Error('Grievance not found');
       
       const updates: any = { status };
       if (response) updates.teacher_response = response;
@@ -378,12 +393,73 @@ export const useGrievances = (currentStudentId?: string, role?: string) => {
       updates.reviewed_at = new Date().toISOString();
       updates.reviewed_by = teacherData.id;
 
-      const { error } = await supabase
+      // Update grievance
+      const { error: grievanceError } = await supabase
         .from('grievances')
         .update(updates)
         .eq('id', grievanceId);
 
-      if (error) throw error;
+      if (grievanceError) throw grievanceError;
+
+      // If marks were updated, also update the answer sheet question
+      if (updatedMarks !== undefined && status === 'resolved') {
+        // Find the question in answer_sheet_questions
+        let questionsQuery = supabase
+          .from('answer_sheet_questions')
+          .select('id, sub_question')
+          .eq('answer_sheet_id', grievance.answer_sheet_id)
+          .eq('question_number', grievance.question_number);
+
+        // If sub_question exists, filter by it; otherwise filter for NULL sub_question
+        if (grievance.sub_question) {
+          questionsQuery = questionsQuery.eq('sub_question', grievance.sub_question);
+        } else {
+          questionsQuery = questionsQuery.is('sub_question', null);
+        }
+
+        const { data: questions, error: questionsError } = await questionsQuery;
+
+        if (questionsError) {
+          console.error('Error fetching questions:', questionsError);
+        } else if (questions && questions.length > 0) {
+          // Update the first matching question
+          const questionToUpdate = questions[0];
+
+          if (questionToUpdate) {
+            const { error: updateQuestionError } = await supabase
+              .from('answer_sheet_questions')
+              .update({
+                obtained_marks: updatedMarks,
+                graded_by: profileData?.id || null,
+                graded_at: new Date().toISOString(),
+              })
+              .eq('id', questionToUpdate.id);
+
+            if (updateQuestionError) {
+              console.error('Error updating question marks:', updateQuestionError);
+              // Don't throw, just log - grievance update succeeded
+            } else {
+              // Recalculate total marks for the answer sheet
+              const { data: allQuestions } = await supabase
+                .from('answer_sheet_questions')
+                .select('obtained_marks')
+                .eq('answer_sheet_id', grievance.answer_sheet_id);
+
+              if (allQuestions) {
+                const totalObtainedMarks = allQuestions.reduce(
+                  (sum, q) => sum + (q.obtained_marks || 0),
+                  0
+                );
+
+                await supabase
+                  .from('answer_sheets')
+                  .update({ obtained_marks: totalObtainedMarks })
+                  .eq('id', grievance.answer_sheet_id);
+              }
+            }
+          }
+        }
+      }
 
       // Update local state
       setGrievances(prev => prev.map(g => 

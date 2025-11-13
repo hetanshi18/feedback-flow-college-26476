@@ -7,11 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnswerSheets, useGrievances, useTeacherExams } from '@/hooks/useDatabase';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { FileText, CheckCircle, Clock, Eye, MessageSquare, AlertTriangle, Star, Upload, BookOpen, ChevronRight } from 'lucide-react';
+import { FileText, CheckCircle, Clock, Eye, MessageSquare, AlertTriangle, Star, Upload, BookOpen, ChevronRight, ChevronLeft, User } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import PaperCheckingInterface from './PaperCheckingInterface';
 import UploadedAnswerSheets from './UploadedAnswerSheets';
@@ -24,7 +25,7 @@ const TeacherDashboard = () => {
   const [viewingAnswerSheet, setViewingAnswerSheet] = useState<any>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
-  const [selectedGrievanceExamId, setSelectedGrievanceExamId] = useState<string | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [gradingAnswerSheet, setGradingAnswerSheet] = useState<any>(null);
   const [isGradingOpen, setIsGradingOpen] = useState(false);
 
@@ -78,37 +79,62 @@ const TeacherDashboard = () => {
     ? answerSheets.filter(sheet => sheet.exam_id === selectedExamId)
     : [];
 
-  // Group grievances by exam
-  const grievancesByExam = teacherExams.map(examAssignment => {
-    const examGrievances = grievances.filter(g => g.answer_sheet?.exam_id === examAssignment.exam_id);
-    const totalGrievances = examGrievances.length;
-    const checkedGrievances = examGrievances.filter(g => g.status === 'resolved' || g.status === 'rejected').length;
-    const pendingGrievancesCount = examGrievances.filter(g => g.status === 'pending').length;
+  // Group grievances by subject
+  const grievancesBySubject = grievances.reduce((acc, grievance) => {
+    const subjectId = grievance.answer_sheet?.exam?.subject?.id;
+    const subjectName = grievance.answer_sheet?.exam?.subject?.name;
     
-    return {
-      exam: examAssignment.exam,
-      grievances: examGrievances,
-      totalGrievances,
-      checkedGrievances,
-      pendingGrievances: pendingGrievancesCount
-    };
-  }).filter(exam => exam.totalGrievances > 0); // Only show exams with grievances
+    if (!subjectId || !subjectName) return acc;
+    
+    if (!acc[subjectId]) {
+      acc[subjectId] = {
+        subjectId,
+        subjectName,
+        grievances: [],
+        totalGrievances: 0,
+        checkedGrievances: 0,
+        pendingGrievances: 0
+      };
+    }
+    
+    acc[subjectId].grievances.push(grievance);
+    acc[subjectId].totalGrievances++;
+    
+    if (grievance.status === 'resolved' || grievance.status === 'rejected') {
+      acc[subjectId].checkedGrievances++;
+    } else if (grievance.status === 'pending') {
+      acc[subjectId].pendingGrievances++;
+    }
+    
+    return acc;
+  }, {} as Record<string, {
+    subjectId: string;
+    subjectName: string;
+    grievances: any[];
+    totalGrievances: number;
+    checkedGrievances: number;
+    pendingGrievances: number;
+  }>);
 
-  // Get grievances for selected exam
-  const selectedExamGrievances = selectedGrievanceExamId
-    ? grievances.filter(g => g.answer_sheet?.exam_id === selectedGrievanceExamId)
+  const grievancesBySubjectList = Object.values(grievancesBySubject).sort((a, b) => 
+    a.subjectName.localeCompare(b.subjectName)
+  );
+
+  // Get grievances for selected subject
+  const selectedSubjectGrievances = selectedSubjectId
+    ? (grievancesBySubject[selectedSubjectId]?.grievances || [])
     : [];
 
-  // Calculate statistics for selected exam
-  const selectedExamGrievanceStats = selectedGrievanceExamId ? {
-    total: selectedExamGrievances.length,
-    checked: selectedExamGrievances.filter(g => g.status === 'resolved' || g.status === 'rejected').length,
-    pending: selectedExamGrievances.filter(g => g.status === 'pending').length
+  // Calculate statistics for selected subject
+  const selectedSubjectGrievanceStats = selectedSubjectId && grievancesBySubject[selectedSubjectId] ? {
+    total: grievancesBySubject[selectedSubjectId].totalGrievances,
+    checked: grievancesBySubject[selectedSubjectId].checkedGrievances,
+    pending: grievancesBySubject[selectedSubjectId].pendingGrievances
   } : null;
 
-  const selectedExamGrievancePieData = selectedExamGrievanceStats ? [
-    { name: 'Checked', value: selectedExamGrievanceStats.checked, color: 'hsl(var(--success))' },
-    { name: 'Pending', value: selectedExamGrievanceStats.pending, color: 'hsl(var(--warning))' },
+  const selectedSubjectGrievancePieData = selectedSubjectGrievanceStats ? [
+    { name: 'Checked', value: selectedSubjectGrievanceStats.checked, color: 'hsl(var(--success))' },
+    { name: 'Pending', value: selectedSubjectGrievanceStats.pending, color: 'hsl(var(--warning))' },
   ].filter(item => item.value > 0) : [];
 
   const getStatusIcon = (status: string) => {
@@ -609,33 +635,30 @@ const TeacherDashboard = () => {
         </TabsContent>
 
         <TabsContent value="grievances" className="space-y-4">
-          {!selectedGrievanceExamId ? (
+          {!selectedSubjectId ? (
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Grievances by Exam</CardTitle>
-                  <CardDescription>Select an exam to view and manage grievances</CardDescription>
+                  <CardTitle>Grievances by Subject</CardTitle>
+                  <CardDescription>Select a subject to view and manage grievances</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {grievancesByExam.length > 0 ? (
+                  {grievancesBySubjectList.length > 0 ? (
                     <div className="space-y-3">
-                      {grievancesByExam.map((item) => (
+                      {grievancesBySubjectList.map((item) => (
                         <div
-                          key={item.exam.id}
+                          key={item.subjectId}
                           className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedGrievanceExamId(item.exam.id)}
+                          onClick={() => setSelectedSubjectId(item.subjectId)}
                         >
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="font-semibold">{item.exam.name}</h3>
-                              <Badge variant="outline">{item.exam.subject?.name}</Badge>
+                              <BookOpen className="h-5 w-5 text-primary" />
+                              <h3 className="font-semibold">{item.subjectName}</h3>
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {item.exam.department?.name} - {new Date(item.exam.exam_date).toLocaleDateString()}
-                            </p>
                             <div className="flex gap-4 mt-2 text-sm">
                               <span>Total: <strong>{item.totalGrievances}</strong></span>
-                              <span className="text-success">Checked: <strong>{item.checkedGrievances}</strong></span>
+                              <span className="text-success">Resolved: <strong>{item.checkedGrievances}</strong></span>
                               <span className="text-warning">Pending: <strong>{item.pendingGrievances}</strong></span>
                             </div>
                           </div>
@@ -656,18 +679,19 @@ const TeacherDashboard = () => {
             <div className="space-y-6">
               <Button
                 variant="outline"
-                onClick={() => setSelectedGrievanceExamId(null)}
+                onClick={() => setSelectedSubjectId(null)}
               >
-                ← Back to Exams
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to Subjects
               </Button>
 
-              {/* Statistics for selected exam */}
-              {selectedExamGrievanceStats && selectedExamGrievanceStats.total > 0 && (
+              {/* Statistics for selected subject */}
+              {selectedSubjectGrievanceStats && selectedSubjectGrievanceStats.total > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Grievance Statistics</CardTitle>
                     <CardDescription>
-                      {teacherExams.find(e => e.exam_id === selectedGrievanceExamId)?.exam?.name}
+                      {grievancesBySubject[selectedSubjectId]?.subjectName}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -677,7 +701,7 @@ const TeacherDashboard = () => {
                         <ResponsiveContainer width="100%" height={200}>
                           <PieChart>
                             <Pie
-                              data={selectedExamGrievancePieData}
+                              data={selectedSubjectGrievancePieData}
                               cx="50%"
                               cy="50%"
                               labelLine={false}
@@ -686,7 +710,7 @@ const TeacherDashboard = () => {
                               fill="#8884d8"
                               dataKey="value"
                             >
-                              {selectedExamGrievancePieData.map((entry, index) => (
+                              {selectedSubjectGrievancePieData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
@@ -699,15 +723,15 @@ const TeacherDashboard = () => {
                       {/* Stats Grid */}
                       <div className="grid grid-cols-3 gap-4">
                         <div className="text-center p-4 border rounded-lg">
-                          <p className="text-2xl font-bold">{selectedExamGrievanceStats.total}</p>
+                          <p className="text-2xl font-bold">{selectedSubjectGrievanceStats.total}</p>
                           <p className="text-sm text-muted-foreground">Total</p>
                         </div>
                         <div className="text-center p-4 border rounded-lg">
-                          <p className="text-2xl font-bold text-success">{selectedExamGrievanceStats.checked}</p>
-                          <p className="text-sm text-muted-foreground">Checked</p>
+                          <p className="text-2xl font-bold text-success">{selectedSubjectGrievanceStats.checked}</p>
+                          <p className="text-sm text-muted-foreground">Resolved</p>
                         </div>
                         <div className="text-center p-4 border rounded-lg">
-                          <p className="text-2xl font-bold text-warning">{selectedExamGrievanceStats.pending}</p>
+                          <p className="text-2xl font-bold text-warning">{selectedSubjectGrievanceStats.pending}</p>
                           <p className="text-sm text-muted-foreground">Pending</p>
                         </div>
                       </div>
@@ -718,7 +742,7 @@ const TeacherDashboard = () => {
 
               {/* Grievances List */}
               <div className="space-y-4">
-                {selectedExamGrievances.map((grievance) => (
+                {selectedSubjectGrievances.map((grievance) => (
                   <Card key={grievance.id}>
                     <CardHeader>
                       <div className="flex justify-between items-start">
@@ -738,23 +762,77 @@ const TeacherDashboard = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div>
-                        <p className="text-sm font-medium">Current Marks: {grievance.current_marks}</p>
-                        <p className="text-sm font-medium text-muted-foreground mt-1">Student's Concern:</p>
-                        <p className="text-sm mt-1">{grievance.grievance_text}</p>
+                      {/* Grievance Details */}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Exam</Label>
+                            <p className="text-sm font-medium">{grievance.answer_sheet?.exam?.name || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Student</Label>
+                            <p className="text-sm font-medium">{grievance.student?.name || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Question</Label>
+                            <p className="text-sm font-medium">
+                              Question {grievance.question_number}
+                              {grievance.sub_question && ` (${grievance.sub_question})`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Current Marks</Label>
+                            <p className="text-sm font-medium text-warning">{grievance.current_marks}</p>
+                          </div>
+                          {grievance.expected_marks && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Expected Marks</Label>
+                              <p className="text-sm font-medium">{grievance.expected_marks}</p>
+                            </div>
+                          )}
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Submitted On</Label>
+                            <p className="text-sm font-medium">
+                              {new Date(grievance.submitted_at).toLocaleDateString()} at{' '}
+                              {new Date(grievance.submitted_at).toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          setViewingAnswerSheet(grievance.answer_sheet);
-                          setIsViewerOpen(true);
-                        }}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Paper
-                      </Button>
+                      <div className="border-t pt-4">
+                        <Label className="text-sm font-medium">Student's Grievance</Label>
+                        <div className="mt-2 p-3 bg-muted/50 rounded-lg">
+                          <p className="text-sm whitespace-pre-wrap">{grievance.grievance_text}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setViewingAnswerSheet(grievance.answer_sheet);
+                            setIsViewerOpen(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Corrected Paper
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setGradingAnswerSheet(grievance.answer_sheet);
+                            setIsGradingOpen(true);
+                          }}
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          Open in Grading Interface
+                        </Button>
+                      </div>
 
                       {grievance.status === 'pending' && (
                         <div className="flex gap-2">
@@ -770,15 +848,38 @@ const TeacherDashboard = () => {
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
-                                <div>
-                                  <Label>Updated Marks</Label>
-                                  <input
-                                    type="number"
-                                    className="w-full p-2 border rounded-md"
-                                    placeholder={String(grievance.current_marks)}
-                                    id={`updated-marks-${grievance.id}`}
-                                  />
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div>
+                                    <Label>Current Marks</Label>
+                                    <Input
+                                      type="number"
+                                      value={grievance.current_marks}
+                                      disabled
+                                      className="bg-muted"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Updated Marks *</Label>
+                                    <Input
+                                      type="number"
+                                      placeholder={String(grievance.current_marks)}
+                                      id={`updated-marks-${grievance.id}`}
+                                      min={0}
+                                      step={0.5}
+                                    />
+                                  </div>
                                 </div>
+                                {grievance.expected_marks && (
+                                  <div>
+                                    <Label>Student's Expected Marks</Label>
+                                    <Input
+                                      type="number"
+                                      value={grievance.expected_marks}
+                                      disabled
+                                      className="bg-muted"
+                                    />
+                                  </div>
+                                )}
                                 <div>
                                   <Label>Response to Student</Label>
                                   <Textarea
@@ -852,10 +953,10 @@ const TeacherDashboard = () => {
                     </CardContent>
                   </Card>
                 ))}
-                {selectedExamGrievances.length === 0 && (
+                {selectedSubjectGrievances.length === 0 && (
                   <div className="text-center py-12">
                     <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
-                    <p className="text-muted-foreground">No grievances for this exam</p>
+                    <p className="text-muted-foreground">No grievances for this subject</p>
                   </div>
                 )}
               </div>
@@ -871,15 +972,15 @@ const TeacherDashboard = () => {
       />
 
       <Dialog open={isGradingOpen} onOpenChange={setIsGradingOpen}>
-        <DialogContent className="max-w-[95vw] h-[95vh] p-0">
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent className="max-w-[95vw] h-[95vh] p-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 flex-shrink-0">
             <DialogTitle>Grade Answer Sheet</DialogTitle>
             <DialogDescription>
               {gradingAnswerSheet?.student?.name} - {gradingAnswerSheet?.exam?.subject?.name}
             </DialogDescription>
           </DialogHeader>
-          <div className="h-full overflow-hidden">
-            {isGradingOpen && <PaperCheckingInterface preSelectedPaper={gradingAnswerSheet} />}
+          <div className="flex-1 overflow-hidden min-h-0">
+            {isGradingOpen && <PaperCheckingInterface preSelectedPaper={gradingAnswerSheet} onClose={() => setIsGradingOpen(false)} />}
           </div>
         </DialogContent>
       </Dialog>

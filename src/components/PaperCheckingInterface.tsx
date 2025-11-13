@@ -45,6 +45,9 @@ import {
   MessageCircle,
   CheckCircle2,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
 } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -57,9 +60,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@$
 
 interface PaperCheckingInterfaceProps {
   preSelectedPaper?: any;
+  onClose?: () => void;
 }
 
-const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProps) => {
+const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInterfaceProps) => {
   const { user } = useAuth();
   const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
   const fabricCanvases = useRef<{ [key: number]: FabricCanvas | null }>({});
@@ -83,6 +87,10 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [assignedQuestions, setAssignedQuestions] = useState<number[]>([]);
   const [marksPerAssignedQuestion, setMarksPerAssignedQuestion] = useState<Record<number, number>>({});
+  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
+  const [markAnnotations, setMarkAnnotations] = useState<{ [key: string]: any }>({}); // Store fabric objects for mark annotations
+  const [isPapersSidebarOpen, setIsPapersSidebarOpen] = useState<boolean>(true);
+  const [isQuestionsSidebarOpen, setIsQuestionsSidebarOpen] = useState<boolean>(true);
 
   // Get current teacher ID (for grading) and profile ID (for created_by)
   useEffect(() => {
@@ -149,12 +157,47 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
     (sheet) => sheet.grading_status === "pending"
   );
 
-  // Load annotations when paper is selected
+  // Load annotations and existing marks when paper is selected
   useEffect(() => {
     if (selectedPaper) {
       loadAnnotationsFromDB();
+      loadExistingMarks();
     }
   }, [selectedPaper]);
+  
+  const loadExistingMarks = async () => {
+    if (!selectedPaper) return;
+    
+    try {
+      // Load existing question marks
+      const { data: questionsData, error } = await supabase
+        .from("answer_sheet_questions")
+        .select("*")
+        .eq("answer_sheet_id", selectedPaper.id);
+      
+      if (error) throw error;
+      
+      // Set marks state
+      const marksState: { [key: string]: number } = {};
+      questionsData?.forEach((q) => {
+        if (q.obtained_marks !== null) {
+          marksState[q.question_number.toString()] = q.obtained_marks;
+        }
+      });
+      setMarks(marksState);
+      
+      // Load comments
+      const commentsState: { [key: string]: string } = {};
+      questionsData?.forEach((q) => {
+        if (q.comments) {
+          commentsState[q.question_number.toString()] = q.comments;
+        }
+      });
+      setComments(commentsState);
+    } catch (error) {
+      console.error("Error loading existing marks:", error);
+    }
+  };
 
   const loadAnnotationsFromDB = async () => {
     if (!selectedPaper) return;
@@ -239,7 +282,7 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
     }
   };
 
-  const initializeFabricCanvas = (pageNum: number) => {
+  const initializeFabricCanvas = async (pageNum: number) => {
     const canvasEl = canvasRefs.current[pageNum];
     
     if (!canvasEl) return;
@@ -281,6 +324,66 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
     });
 
     fabricCanvases.current[pageNum] = fabricCanvas;
+    
+    // Load existing mark annotations for this page
+    loadMarkAnnotationsForPage(pageNum, fabricCanvas);
+  };
+  
+  const loadMarkAnnotationsForPage = async (pageNum: number, canvas: FabricCanvas) => {
+    if (!selectedPaper) return;
+    
+    try {
+      // Load mark annotations (text type) for this page
+      const { data: markAnnotations, error } = await supabase
+        .from("answer_sheet_annotations")
+        .select("*, answer_sheet_questions(question_number, max_marks, obtained_marks)")
+        .eq("answer_sheet_id", selectedPaper.id)
+        .eq("page_number", pageNum)
+        .eq("annotation_type", "text");
+      
+      if (error) throw error;
+      
+      markAnnotations?.forEach((ann: any) => {
+        try {
+          const content = ann.content ? JSON.parse(ann.content) : null;
+          if (content) {
+            // Reconstruct IText from JSON
+            const markText = new IText(content.text || `Q${ann.answer_sheet_questions?.question_number}: ${ann.answer_sheet_questions?.obtained_marks}/${ann.answer_sheet_questions?.max_marks}`, {
+              left: content.left || ann.x_position,
+              top: content.top || ann.y_position,
+              fontSize: content.fontSize || 24,
+              fill: content.fill || ann.color || '#FF0000',
+              fontFamily: content.fontFamily || 'Arial',
+              fontWeight: content.fontWeight || 'bold',
+              backgroundColor: content.backgroundColor || 'rgba(255, 255, 255, 0.9)',
+              padding: content.padding || 8,
+              borderColor: content.borderColor || '#000000',
+              borderWidth: content.borderWidth || 2,
+              selectable: true,
+              hasControls: true,
+              hasBorders: true,
+            });
+            
+            canvas.add(markText);
+            
+            // Store in markAnnotations state
+            const questionNum = ann.answer_sheet_questions?.question_number;
+            if (questionNum) {
+              setMarkAnnotations((prev) => ({
+                ...prev,
+                [questionNum.toString()]: { ...markText, canvas, pageNumber: pageNum },
+              }));
+            }
+          }
+        } catch (err) {
+          console.error("Error loading mark annotation:", err);
+        }
+      });
+      
+      canvas.renderAll();
+    } catch (error) {
+      console.error("Error loading mark annotations for page:", error);
+    }
   };
 
   const addPresetAnnotation = (
@@ -407,11 +510,127 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
     setScale(Math.min(Math.max(newScale, 0.5), 3.0));
   };
 
-  const handleQuestionMarks = (questionNumber: string, inputMarks: number) => {
-    const qNum = parseInt(questionNumber);
-    const max = marksPerAssignedQuestion[qNum] ?? Infinity;
-    const clamped = Math.max(0, Math.min(inputMarks, max));
-    setMarks((prev) => ({ ...prev, [questionNumber]: clamped }));
+  const handleQuestionMarks = async (questionNumber: number, selectedMarks: number) => {
+    const max = marksPerAssignedQuestion[questionNumber] ?? Infinity;
+    const clamped = Math.max(0, Math.min(selectedMarks, max));
+    const questionKey = questionNumber.toString();
+    
+    // Update marks state
+    setMarks((prev) => ({ ...prev, [questionKey]: clamped }));
+    
+    // Remove existing mark annotation for this question if any
+    const existingAnnotation = markAnnotations[questionKey];
+    if (existingAnnotation) {
+      Object.values(fabricCanvases.current).forEach((canvas) => {
+        if (canvas && existingAnnotation.canvas === canvas) {
+          canvas.remove(existingAnnotation);
+          canvas.renderAll();
+        }
+      });
+    }
+    
+    // Add new mark annotation to the current page
+    const canvas = fabricCanvases.current[pageNumber];
+    if (canvas && clamped >= 0) {
+      // Calculate position - distribute marks vertically on the right side
+      const questionIndex = assignedQuestions.indexOf(questionNumber);
+      const totalQuestions = assignedQuestions.length;
+      const verticalSpacing = pageHeight / Math.max(totalQuestions, 10); // Space them out
+      const topPosition = pageHeight * 0.05 + (questionIndex * verticalSpacing);
+      
+      // Create a text annotation showing the marks
+      const markText = new IText(`Q${questionNumber}: ${clamped}/${max}`, {
+        left: pageWidth * 0.75, // Position on right side
+        top: Math.min(topPosition, pageHeight * 0.9), // Distribute vertically, but don't go off page
+        fontSize: 22,
+        fill: clamped === max ? '#00AA00' : clamped > 0 ? '#FF6600' : '#FF0000', // Green for full marks, orange for partial, red for zero
+        fontFamily: 'Arial',
+        fontWeight: 'bold',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        padding: 6,
+        borderColor: clamped === max ? '#00AA00' : clamped > 0 ? '#FF6600' : '#FF0000',
+        borderWidth: 2,
+        selectable: true,
+        hasControls: true,
+        hasBorders: true,
+        shadow: {
+          color: 'rgba(0, 0, 0, 0.3)',
+          blur: 5,
+          offsetX: 2,
+          offsetY: 2,
+        },
+      });
+      
+      canvas.add(markText);
+      canvas.renderAll();
+      
+      // Store the annotation
+      setMarkAnnotations((prev) => ({
+        ...prev,
+        [questionKey]: { ...markText, canvas, pageNumber },
+      }));
+      
+      // Save annotation to database
+      await saveMarkAnnotation(questionNumber, clamped, markText, pageNumber);
+    }
+    
+    toast.success(`Marks ${clamped}/${max} assigned to Question ${questionNumber}`);
+  };
+  
+  const saveMarkAnnotation = async (questionNumber: number, marks: number, fabricObject: any, pageNum: number) => {
+    if (!selectedPaper || !currentProfileId) return;
+    
+    try {
+      // Get or create question record
+      const { data: questionData, error: questionError } = await supabase
+        .from("answer_sheet_questions")
+        .upsert({
+          answer_sheet_id: selectedPaper.id,
+          question_number: questionNumber,
+          max_marks: marksPerAssignedQuestion[questionNumber] ?? 0,
+          obtained_marks: marks,
+          graded_by: currentProfileId,
+          graded_at: new Date().toISOString(),
+        }, {
+          onConflict: 'answer_sheet_id,question_number',
+        })
+        .select()
+        .single();
+      
+      if (questionError) throw questionError;
+      
+      // Save annotation
+      const annotationData = {
+        answer_sheet_id: selectedPaper.id,
+        question_id: questionData.id,
+        page_number: pageNum,
+        x_position: fabricObject.left,
+        y_position: fabricObject.top,
+        annotation_type: 'text',
+        content: JSON.stringify(fabricObject.toJSON()),
+        color: fabricObject.fill,
+        created_by: currentProfileId,
+      };
+      
+      // Delete old mark annotations for this question
+      if (questionData.id) {
+        await supabase
+          .from("answer_sheet_annotations")
+          .delete()
+          .eq("answer_sheet_id", selectedPaper.id)
+          .eq("question_id", questionData.id)
+          .eq("annotation_type", "text");
+      }
+      
+      // Insert new annotation
+      const { error: annotationError } = await supabase
+        .from("answer_sheet_annotations")
+        .insert(annotationData);
+      
+      if (annotationError) throw annotationError;
+    } catch (error) {
+      console.error("Error saving mark annotation:", error);
+    }
   };
 
   const handleQuestionComment = (questionNumber: string, comment: string) => {
@@ -475,6 +694,7 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
       setComments({});
       setAnnotations([]);
       setTotalObtainedMarks(0);
+      onClose?.();
     } catch (error) {
       console.error("Error saving paper:", error);
       toast.error("Failed to save paper grades");
@@ -487,248 +707,342 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold">Paper Checking Interface</h2>
-        <Badge variant="secondary">{pendingPapers.length} papers pending</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{pendingPapers.length} papers pending</Badge>
+          {onClose && (
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Pending Papers
-            </CardTitle>
-            <CardDescription>Select a paper to start grading</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingPapers.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                No pending papers to grade
-              </p>
-            ) : (
-              pendingPapers.map((paper) => (
-                <Card
-                  key={paper.id}
-                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                    selectedPaper?.id === paper.id ? "ring-2 ring-primary" : ""
-                  }`}
-                  onClick={() => setSelectedPaper(paper)}
-                >
-                  <CardContent className="p-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium">{paper.student?.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {paper.exam?.subject?.name} - {paper.exam?.name}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex gap-4 h-[calc(100vh-180px)] relative">
+        {/* Collapsible Pending Papers Sidebar */}
+        {!selectedPaper || isPapersSidebarOpen ? (
+          <Card className={`w-64 flex-shrink-0 flex flex-col transition-all ${selectedPaper ? 'absolute left-0 top-0 z-50 h-full shadow-lg' : ''}`}>
+            <CardHeader className="flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <FileText className="w-4 h-4" />
+                  Pending Papers
+                </CardTitle>
+                {selectedPaper && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsPapersSidebarOpen(false)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto">
+              <ScrollArea className="h-full">
+                <div className="space-y-2">
+                  {pendingPapers.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4 text-sm">
+                      No pending papers
+                    </p>
+                  ) : (
+                    pendingPapers.map((paper) => (
+                      <div
+                        key={paper.id}
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-muted/50 ${
+                          selectedPaper?.id === paper.id ? "ring-2 ring-primary bg-primary/5" : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedPaper(paper);
+                          setIsPapersSidebarOpen(false);
+                          setIsQuestionsSidebarOpen(true); // Auto-open questions sidebar when paper is selected
+                        }}
+                      >
+                        <h4 className="font-medium text-sm">{paper.student?.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {paper.exam?.subject?.name} - {paper.exam?.name}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="absolute left-2 top-2 z-50 h-8 w-8 p-0"
+            onClick={() => setIsPapersSidebarOpen(true)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        )}
 
-        <div className="lg:col-span-2 space-y-6">
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 relative">
           {selectedPaper ? (
             <>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-center">
-                      <CardTitle>
-                        Answer Sheet: {selectedPaper.student?.name}
-                      </CardTitle>
-                    </div>
-                    {/* Annotation Toolbar */}
-                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg flex-wrap">
+              {/* Floating Questions Sidebar */}
+              {isQuestionsSidebarOpen ? (
+                <Card className="absolute right-4 top-4 z-40 w-72 max-h-[80vh] flex flex-col shadow-xl border-2">
+                  <CardHeader className="flex-shrink-0 pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">Questions</CardTitle>
                       <Button
+                        variant="ghost"
                         size="sm"
-                        variant={activeTool === "pen" ? "default" : "outline"}
-                        onClick={() => setActiveTool("pen")}
-                      >
-                        <Pen className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "eraser" ? "default" : "outline"}
-                        onClick={() => setActiveTool("eraser")}
-                      >
-                        <Eraser className="h-4 w-4" />
-                      </Button>
-                      <div className="w-px h-6 bg-border" />
-                      <Button
-                        size="sm"
-                        variant={activeTool === "tick" ? "default" : "outline"}
-                        onClick={() => setActiveTool("tick")}
-                        className={activeTool === "tick" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "cross" ? "default" : "outline"}
-                        onClick={() => setActiveTool("cross")}
-                        className={activeTool === "cross" ? "" : "text-red-600 hover:text-red-700"}
+                        onClick={() => setIsQuestionsSidebarOpen(false)}
+                        className="h-6 w-6 p-0"
                       >
                         <XIcon className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "oval" ? "default" : "outline"}
-                        onClick={() => setActiveTool("oval")}
-                        className={activeTool === "oval" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <CircleIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeTool === "textbox" ? "default" : "outline"}
-                        onClick={() => setActiveTool("textbox")}
-                        className={activeTool === "textbox" ? "" : "text-red-600 hover:text-red-700"}
-                      >
-                        <Type className="h-4 w-4" />
-                      </Button>
-                      <div className="w-px h-6 bg-border" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-auto p-3">
+                    <ScrollArea className="h-full">
+                      <div className="space-y-2">
+                        {assignedQuestions.map((questionNumber) => {
+                          const maxMarks = marksPerAssignedQuestion[questionNumber] ?? 0;
+                          const currentMarks = marks[questionNumber.toString()] ?? null;
+                          const isGraded = currentMarks !== null;
+                          const markOptions = Array.from({ length: maxMarks + 1 }, (_, i) => i);
+                          
+                          return (
+                            <div
+                              key={questionNumber}
+                              className={`p-2 border rounded transition-all text-xs ${
+                                selectedQuestion === questionNumber
+                                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                  : isGraded
+                                  ? "border-green-500 bg-green-50"
+                                  : "border-border hover:bg-muted/50"
+                              }`}
+                              onClick={() => setSelectedQuestion(questionNumber)}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <Label className="font-semibold text-xs cursor-pointer">
+                                  Q{questionNumber}
+                                </Label>
+                                {isGraded && (
+                                  <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                )}
+                              </div>
+                              <Select
+                                value={currentMarks !== null ? currentMarks.toString() : "none"}
+                                onValueChange={(value) => {
+                                  if (value !== "none") {
+                                    handleQuestionMarks(questionNumber, parseInt(value));
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue placeholder="Select marks" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Not graded</SelectItem>
+                                  {markOptions.map((mark) => (
+                                    <SelectItem key={mark} value={mark.toString()}>
+                                      {mark} / {maxMarks}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {isGraded && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {currentMarks} / {maxMarks}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                  {/* Summary Footer */}
+                  <div className="border-t p-3 bg-muted/50">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-medium">Total:</span>
+                      <span className="text-sm font-bold">{totalObtainedMarks}</span>
+                    </div>
+                    <Button
+                      onClick={handleSavePaper}
+                      disabled={assignedQuestions.length === 0}
+                      className="w-full h-8 text-xs"
+                      size="sm"
+                    >
+                      <Save className="w-3 h-3 mr-1" />
+                      Submit
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute right-4 top-4 z-40 h-8 w-8 p-0 shadow-lg"
+                  onClick={() => setIsQuestionsSidebarOpen(true)}
+                >
+                  <Menu className="h-4 w-4" />
+                </Button>
+              )}
+
+              {/* PDF Viewer - Full Width */}
+              <Card className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+                <CardHeader className="flex-shrink-0 pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">
+                      {selectedPaper.student?.name} - {selectedPaper.exam?.subject?.name}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={saveAnnotationsToDB}
+                        onClick={() => changePage(-1)}
+                        disabled={pageNumber <= 1}
                       >
-                        <Save className="h-4 w-4 mr-1" />
-                        Save Annotations
+                        <ChevronLeft className="w-4 h-4" />
                       </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => changePage(-1)}
-                          disabled={pageNumber <= 1}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <span className="text-sm">
-                          Page {pageNumber} of {numPages}
-                        </span>
-                        <Button
-                          size="sm"
-                          onClick={() => changePage(1)}
-                          disabled={pageNumber >= numPages}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button onClick={() => changeScale(scale - 0.1)} size="sm"><Minus className="w-4 h-4" /></Button>
-                        <span className="text-sm">{Math.round(scale * 100)}%</span>
-                        <Button onClick={() => changeScale(scale + 0.1)} size="sm"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                    </div>
-
-                    {/* PDF Display with Annotation Canvas */}
-                    <div className="border rounded-lg overflow-hidden bg-white">
-                      <div className="flex justify-center relative inline-block">
-                        <Document
-                          file={getPdfUrl(selectedPaper.file_url)}
-                          onLoadSuccess={onDocumentLoadSuccess}
-                          onLoadError={(e) => setPdfError(e.message)}
-                        >
-                          <Page
-                            pageNumber={pageNumber}
-                            scale={scale}
-                            renderTextLayer={false}
-                            renderAnnotationLayer={false}
-                            onRenderSuccess={(page: any) => {
-                              const viewport = page.getViewport({ scale });
-                              setPageWidth(viewport.width);
-                              setPageHeight(viewport.height);
-                              setTimeout(() => initializeFabricCanvas(pageNumber), 100);
-                            }}
-                          />
-                        </Document>
-                        {/* The Canvas Wrapper */}
-                        <div 
-                          className="absolute top-0 left-0 z-50"
-                          style={{ width: pageWidth, height: pageHeight }}
-                        >
-                          <canvas
-                            ref={(el) => {
-                              if (el) canvasRefs.current[pageNumber] = el;
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Grade Paper</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <ScrollArea className="h-96 pr-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {assignedQuestions.map((questionNumber) => (
-                          <div key={questionNumber} className="space-y-2">
-                            <Label>
-                              Question {questionNumber} (Max {marksPerAssignedQuestion[questionNumber] ?? "-"})
-                            </Label>
-                            <div className="flex gap-2">
-                              <Input
-                                type="number"
-                                placeholder="Marks"
-                                value={marks[questionNumber] ?? ""}
-                                onChange={(e) =>
-                                  handleQuestionMarks(
-                                    questionNumber.toString(),
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                min={0}
-                                max={marksPerAssignedQuestion[questionNumber] ?? undefined}
-                              />
-                              <Input
-                                placeholder="Comment"
-                                value={comments[questionNumber] || ""}
-                                onChange={(e) =>
-                                  handleQuestionComment(
-                                    questionNumber.toString(),
-                                    e.target.value
-                                  )
-                                }
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                    <div className="flex justify-between items-center pt-4 border-t">
-                      <div className="text-lg font-semibold">
-                        Total: {totalObtainedMarks}
-                      </div>
+                      <span className="text-sm min-w-[80px] text-center">
+                        Page {pageNumber} / {numPages}
+                      </span>
                       <Button
-                        onClick={handleSavePaper}
-                        disabled={assignedQuestions.length === 0}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => changePage(1)}
+                        disabled={pageNumber >= numPages}
                       >
-                        <Save className="w-4 h-4 mr-2" />
-                        Submit Grades
+                        <ChevronRight className="w-4 h-4" />
                       </Button>
+                      <div className="w-px h-6 bg-border" />
+                      <Button onClick={() => changeScale(scale - 0.1)} size="sm" variant="outline">
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="text-sm min-w-[50px] text-center">{Math.round(scale * 100)}%</span>
+                      <Button onClick={() => changeScale(scale + 0.1)} size="sm" variant="outline">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {/* Compact Annotation Toolbar */}
+                  <div className="flex items-center gap-1 p-2 bg-muted rounded-lg flex-wrap mt-2">
+                    <Button
+                      size="sm"
+                      variant={activeTool === "pen" ? "default" : "outline"}
+                      onClick={() => setActiveTool("pen")}
+                      className="h-7"
+                    >
+                      <Pen className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={activeTool === "eraser" ? "default" : "outline"}
+                      onClick={() => setActiveTool("eraser")}
+                      className="h-7"
+                    >
+                      <Eraser className="h-3 w-3" />
+                    </Button>
+                    <div className="w-px h-4 bg-border" />
+                    <Button
+                      size="sm"
+                      variant={activeTool === "tick" ? "default" : "outline"}
+                      onClick={() => setActiveTool("tick")}
+                      className="h-7"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={activeTool === "cross" ? "default" : "outline"}
+                      onClick={() => setActiveTool("cross")}
+                      className="h-7"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={activeTool === "oval" ? "default" : "outline"}
+                      onClick={() => setActiveTool("oval")}
+                      className="h-7"
+                    >
+                      <CircleIcon className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={activeTool === "textbox" ? "default" : "outline"}
+                      onClick={() => setActiveTool("textbox")}
+                      className="h-7"
+                    >
+                      <Type className="h-3 w-3" />
+                    </Button>
+                    <div className="w-px h-4 bg-border" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={saveAnnotationsToDB}
+                      className="h-7 text-xs"
+                    >
+                      <Save className="h-3 w-3 mr-1" />
+                      Save
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-auto p-4">
+                  <div className="border rounded-lg overflow-auto bg-gray-50 flex justify-center min-h-full">
+                    <div className="relative inline-block">
+                      <Document
+                        file={getPdfUrl(selectedPaper.file_url)}
+                        onLoadSuccess={onDocumentLoadSuccess}
+                        onLoadError={(e) => setPdfError(e.message)}
+                        loading={
+                          <div className="flex items-center justify-center p-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          </div>
+                        }
+                      >
+                        <Page
+                          pageNumber={pageNumber}
+                          scale={scale}
+                          renderTextLayer={false}
+                          renderAnnotationLayer={false}
+                          onRenderSuccess={(page: any) => {
+                            const viewport = page.getViewport({ scale });
+                            setPageWidth(viewport.width);
+                            setPageHeight(viewport.height);
+                            setTimeout(() => initializeFabricCanvas(pageNumber), 100);
+                          }}
+                          loading={
+                            <div className="flex items-center justify-center p-8">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                            </div>
+                          }
+                        />
+                      </Document>
+                      <div
+                        className="absolute top-0 left-0 z-50 pointer-events-auto"
+                        style={{ width: pageWidth, height: pageHeight }}
+                      >
+                        <canvas
+                          ref={(el) => {
+                            if (el) canvasRefs.current[pageNumber] = el;
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </>
           ) : (
-            <div className="text-center text-muted-foreground p-10 bg-muted rounded-lg">
-              Select a paper to start grading
+            <div className="flex-1 flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
+              <div className="text-center">
+                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Select a paper to start grading</p>
+              </div>
             </div>
           )}
         </div>

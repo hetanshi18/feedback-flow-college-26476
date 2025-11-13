@@ -26,6 +26,7 @@ const TeacherDashboard = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [selectedSubjectExamId, setSelectedSubjectExamId] = useState<string | null>(null);
   const [gradingAnswerSheet, setGradingAnswerSheet] = useState<any>(null);
   const [isGradingOpen, setIsGradingOpen] = useState(false);
 
@@ -83,6 +84,8 @@ const TeacherDashboard = () => {
   const grievancesBySubject = grievances.reduce((acc, grievance) => {
     const subjectId = grievance.answer_sheet?.exam?.subject?.id;
     const subjectName = grievance.answer_sheet?.exam?.subject?.name;
+    const examId = grievance.answer_sheet?.exam?.id;
+    const examName = grievance.answer_sheet?.exam?.name;
     
     if (!subjectId || !subjectName) return acc;
     
@@ -93,7 +96,8 @@ const TeacherDashboard = () => {
         grievances: [],
         totalGrievances: 0,
         checkedGrievances: 0,
-        pendingGrievances: 0
+        pendingGrievances: 0,
+        exams: {}
       };
     }
     
@@ -105,6 +109,29 @@ const TeacherDashboard = () => {
     } else if (grievance.status === 'pending') {
       acc[subjectId].pendingGrievances++;
     }
+
+    if (examId && examName) {
+      if (!acc[subjectId].exams[examId]) {
+        acc[subjectId].exams[examId] = {
+          examId,
+          examName,
+          grievances: [],
+          totalGrievances: 0,
+          checkedGrievances: 0,
+          pendingGrievances: 0,
+        };
+      }
+
+      const examEntry = acc[subjectId].exams[examId];
+      examEntry.grievances.push(grievance);
+      examEntry.totalGrievances++;
+
+      if (grievance.status === 'resolved' || grievance.status === 'rejected') {
+        examEntry.checkedGrievances++;
+      } else if (grievance.status === 'pending') {
+        examEntry.pendingGrievances++;
+      }
+    }
     
     return acc;
   }, {} as Record<string, {
@@ -114,6 +141,14 @@ const TeacherDashboard = () => {
     totalGrievances: number;
     checkedGrievances: number;
     pendingGrievances: number;
+    exams: Record<string, {
+      examId: string;
+      examName: string;
+      grievances: any[];
+      totalGrievances: number;
+      checkedGrievances: number;
+      pendingGrievances: number;
+    }>;
   }>);
 
   const grievancesBySubjectList = Object.values(grievancesBySubject).sort((a, b) => 
@@ -121,16 +156,30 @@ const TeacherDashboard = () => {
   );
 
   // Get grievances for selected subject
-  const selectedSubjectGrievances = selectedSubjectId
-    ? (grievancesBySubject[selectedSubjectId]?.grievances || [])
-    : [];
+  const selectedSubjectData = selectedSubjectId ? grievancesBySubject[selectedSubjectId] : null;
+  const selectedSubjectExams = selectedSubjectData ? Object.values(selectedSubjectData.exams) : [];
+  const selectedExamData = selectedSubjectExamId && selectedSubjectData
+    ? selectedSubjectData.exams[selectedSubjectExamId] || null
+    : null;
+
+  const selectedSubjectGrievances = selectedExamData
+    ? selectedExamData.grievances
+    : selectedSubjectData?.grievances || [];
 
   // Calculate statistics for selected subject
-  const selectedSubjectGrievanceStats = selectedSubjectId && grievancesBySubject[selectedSubjectId] ? {
-    total: grievancesBySubject[selectedSubjectId].totalGrievances,
-    checked: grievancesBySubject[selectedSubjectId].checkedGrievances,
-    pending: grievancesBySubject[selectedSubjectId].pendingGrievances
-  } : null;
+  const selectedSubjectGrievanceStats = selectedExamData
+    ? {
+        total: selectedExamData.totalGrievances,
+        checked: selectedExamData.checkedGrievances,
+        pending: selectedExamData.pendingGrievances,
+      }
+    : selectedSubjectData
+    ? {
+        total: selectedSubjectData.totalGrievances,
+        checked: selectedSubjectData.checkedGrievances,
+        pending: selectedSubjectData.pendingGrievances,
+      }
+    : null;
 
   const selectedSubjectGrievancePieData = selectedSubjectGrievanceStats ? [
     { name: 'Checked', value: selectedSubjectGrievanceStats.checked, color: 'hsl(var(--success))' },
@@ -649,7 +698,10 @@ const TeacherDashboard = () => {
                         <div
                           key={item.subjectId}
                           className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedSubjectId(item.subjectId)}
+                          onClick={() => {
+                            setSelectedSubjectId(item.subjectId);
+                            setSelectedSubjectExamId(null);
+                          }}
                         >
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
@@ -661,6 +713,15 @@ const TeacherDashboard = () => {
                               <span className="text-success">Resolved: <strong>{item.checkedGrievances}</strong></span>
                               <span className="text-warning">Pending: <strong>{item.pendingGrievances}</strong></span>
                             </div>
+                            {Object.values(item.exams).length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {Object.values(item.exams).map((exam: any) => (
+                                  <Badge key={exam.examId} variant="secondary" className="text-xs">
+                                    {exam.examName}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
@@ -679,11 +740,60 @@ const TeacherDashboard = () => {
             <div className="space-y-6">
               <Button
                 variant="outline"
-                onClick={() => setSelectedSubjectId(null)}
+                onClick={() => {
+                  setSelectedSubjectId(null);
+                  setSelectedSubjectExamId(null);
+                }}
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back to Subjects
               </Button>
+
+              {selectedSubjectExams.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <CardTitle>Papers in {selectedSubjectData?.subjectName}</CardTitle>
+                        <CardDescription>Filter grievances by specific paper</CardDescription>
+                      </div>
+                      {selectedSubjectExamId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedSubjectExamId(null)}
+                        >
+                          View All Papers
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {selectedSubjectExams.map((exam: any) => {
+                        const isSelected = selectedSubjectExamId === exam.examId;
+                        return (
+                          <div
+                            key={exam.examId}
+                            className={`p-4 border rounded-lg transition-colors cursor-pointer flex items-center justify-between ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                            onClick={() => setSelectedSubjectExamId(isSelected ? null : exam.examId)}
+                          >
+                            <div>
+                              <h4 className="font-semibold">{exam.examName}</h4>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span>Total: <strong>{exam.totalGrievances}</strong></span>
+                                <span className="text-success">Resolved: <strong>{exam.checkedGrievances}</strong></span>
+                                <span className="text-warning">Pending: <strong>{exam.pendingGrievances}</strong></span>
+                              </div>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Statistics for selected subject */}
               {selectedSubjectGrievanceStats && selectedSubjectGrievanceStats.total > 0 && (
@@ -691,7 +801,9 @@ const TeacherDashboard = () => {
                   <CardHeader>
                     <CardTitle>Grievance Statistics</CardTitle>
                     <CardDescription>
-                      {grievancesBySubject[selectedSubjectId]?.subjectName}
+                      {selectedExamData
+                        ? `${selectedExamData.examName} • ${selectedSubjectData?.subjectName ?? ""}`
+                        : selectedSubjectData?.subjectName}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -979,7 +1091,7 @@ const TeacherDashboard = () => {
               {gradingAnswerSheet?.student?.name} - {gradingAnswerSheet?.exam?.subject?.name}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-auto min-h-0">
             {isGradingOpen && <PaperCheckingInterface preSelectedPaper={gradingAnswerSheet} onClose={() => setIsGradingOpen(false)} />}
           </div>
         </DialogContent>

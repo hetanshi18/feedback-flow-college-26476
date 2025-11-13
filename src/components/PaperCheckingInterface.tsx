@@ -297,23 +297,64 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
     canvasEl.height = pageHeight;
 
     const fabricCanvas = new FabricCanvas(canvasEl, {
-      isDrawingMode: activeTool === "pen" || activeTool === "eraser",
+      isDrawingMode: activeTool === "pen", // Only pen uses drawing mode, not eraser
       width: pageWidth,
       height: pageHeight,
-      selection: true,
+      selection: activeTool !== "eraser", // Disable selection when eraser is active
       backgroundColor: "transparent", // Ensure transparency
     });
 
     if (fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush.color =
-        activeTool === "eraser" ? "#FFFFFF" : annotationColor;
-      fabricCanvas.freeDrawingBrush.width = activeTool === "eraser" ? 20 : 2;
+      fabricCanvas.freeDrawingBrush.color = annotationColor;
+      fabricCanvas.freeDrawingBrush.width = 2;
     }
 
     fabricCanvas.on("mouse:down", (opt: any) => {
       const currentTool = activeToolRef.current;
-      if (currentTool === "pen" || currentTool === "eraser") return;
 
+      // Handle eraser tool - delete clicked object
+      if (currentTool === "eraser") {
+        const target = opt.target;
+        if (target && target !== fabricCanvas) {
+          // Check if it's a mark annotation (IText that starts with "Q")
+          const isMarkAnnotation = target.type === "i-text" &&
+            target.text &&
+            typeof target.text === "string" &&
+            target.text.startsWith("Q");
+
+          if (isMarkAnnotation) {
+            // Extract question number from text (format: "Q1: 5/10")
+            const match = target.text.match(/^Q(\d+):/);
+            if (match) {
+              const questionNum = match[1];
+              // Remove from markAnnotations state
+              setMarkAnnotations((prev) => {
+                const newState = { ...prev };
+                delete newState[questionNum];
+                return newState;
+              });
+              // Clear marks for this question
+              setMarks((prev) => {
+                const newState = { ...prev };
+                delete newState[questionNum];
+                return newState;
+              });
+            }
+          }
+
+          // Remove from canvas
+          fabricCanvas.remove(target);
+          fabricCanvas.renderAll();
+          toast.success("Annotation deleted");
+          return;
+        }
+        return;
+      }
+
+      // Handle pen tool - allow drawing
+      if (currentTool === "pen") return;
+
+      // Handle preset annotations
       opt.e.preventDefault();
       const pointer = fabricCanvas.getPointer(opt.e);
 
@@ -479,11 +520,27 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
     activeToolRef.current = activeTool;
     const canvas = fabricCanvases.current[pageNumber];
     if (canvas) {
-      canvas.isDrawingMode = activeTool === "pen" || activeTool === "eraser";
+      // Only pen uses drawing mode, eraser deletes objects on click
+      canvas.isDrawingMode = activeTool === "pen";
+      canvas.selection = activeTool !== "eraser"; // Disable selection when eraser is active
+
       if (canvas.freeDrawingBrush) {
-        canvas.freeDrawingBrush.color =
-          activeTool === "eraser" ? "#FFFFFF" : annotationColor;
-        canvas.freeDrawingBrush.width = activeTool === "eraser" ? 20 : 2;
+        canvas.freeDrawingBrush.color = annotationColor;
+        canvas.freeDrawingBrush.width = 2;
+      }
+
+      // Update cursor based on tool
+      if (canvas.lowerCanvasEl) {
+        canvas.lowerCanvasEl.style.cursor =
+          activeTool === "eraser" ? "not-allowed" :
+            activeTool === "pen" ? "crosshair" :
+              "default";
+      }
+      if (canvas.upperCanvasEl) {
+        canvas.upperCanvasEl.style.cursor =
+          activeTool === "eraser" ? "not-allowed" :
+            activeTool === "pen" ? "crosshair" :
+              "default";
       }
     }
   }, [activeTool, annotationColor, pageNumber]);
@@ -955,10 +1012,10 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
                             <div
                               key={questionNumber}
                               className={`p-2 border rounded transition-all text-xs ${selectedQuestion === questionNumber
-                                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                  : isGraded
-                                    ? "border-green-500 bg-green-50"
-                                    : "border-border hover:bg-muted/50"
+                                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                : isGraded
+                                  ? "border-green-500 bg-green-50"
+                                  : "border-border hover:bg-muted/50"
                                 }`}
                               onClick={() => setSelectedQuestion(questionNumber)}
                             >

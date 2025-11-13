@@ -75,18 +75,16 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
       fabricCanvases.current[pageNum] = null;
     }
     
+    // Set dimensions explicitly
+    canvasEl.width = pageWidth;
+    canvasEl.height = pageHeight;
+
     const canvas = new FabricCanvas(canvasEl, {
       isDrawingMode: false,
       selection: false,
       width: pageWidth,
       height: pageHeight,
-    });
-    
-    // Make canvas read-only for students
-    canvas.selection = false;
-    canvas.forEachObject((obj) => {
-      obj.selectable = false;
-      obj.evented = false;
+      backgroundColor: 'transparent'
     });
     
     fabricCanvases.current[pageNum] = canvas;
@@ -97,17 +95,13 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
       try {
         const content = JSON.parse(ann.content);
         
-        // Load the Fabric.js objects from the saved JSON
-        if (content.objects) {
-          for (const objData of content.objects) {
-            const enlivened = await util.enlivenObjects([objData]);
-            if (enlivened && enlivened[0] instanceof FabricObject) {
-              const obj = enlivened[0] as FabricObject;
-              obj.selectable = false;
-              obj.evented = false;
-              canvas.add(obj);
-            }
-          }
+        // Fabric.js enlivens individual objects
+        const enlivened = await util.enlivenObjects([content]);
+        if (enlivened && enlivened[0]) {
+          const obj = enlivened[0] as FabricObject;
+          obj.selectable = false;
+          obj.evented = false;
+          canvas.add(obj);
         }
         
         canvas.renderAll();
@@ -152,8 +146,8 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
             </Button>
           </div>
 
-          <div ref={pdfContainerRef} className="relative border rounded-lg overflow-hidden bg-white flex justify-center">
-            <div className="relative">
+          <div ref={pdfContainerRef} className="border rounded-lg overflow-hidden bg-white">
+            <div className="flex justify-center relative inline-block">
               <Document
                 file={getPdfUrl(answerSheet?.file_url)}
                 onLoadSuccess={onDocumentLoadSuccess}
@@ -170,13 +164,16 @@ const StudentAnswerSheetViewer = ({ answerSheet, open, onOpenChange }: StudentAn
                   }}
                 />
               </Document>
-              <canvas
-                ref={(el) => {
-                  if (el) canvasRefs.current[pageNumber] = el;
-                }}
-                className="absolute top-0 left-0 pointer-events-none"
-                style={{ zIndex: 10 }}
-              />
+              <div 
+                className="absolute top-0 left-0 z-50 pointer-events-none"
+                style={{ width: pageWidth, height: pageHeight }}
+              >
+                <canvas
+                  ref={(el) => {
+                    if (el) canvasRefs.current[pageNumber] = el;
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -123,7 +123,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
       setSelectedPaper(preSelectedPaper);
     }
   }, [preSelectedPaper]);
-  
+
   // Load assignment for the selected paper and current teacher
   useEffect(() => {
     const loadAssignment = async () => {
@@ -164,19 +164,19 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
       loadExistingMarks();
     }
   }, [selectedPaper]);
-  
+
   const loadExistingMarks = async () => {
     if (!selectedPaper) return;
-    
+
     try {
       // Load existing question marks
       const { data: questionsData, error } = await supabase
         .from("answer_sheet_questions")
         .select("*")
         .eq("answer_sheet_id", selectedPaper.id);
-      
+
       if (error) throw error;
-      
+
       // Set marks state
       const marksState: { [key: string]: number } = {};
       questionsData?.forEach((q) => {
@@ -185,7 +185,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         }
       });
       setMarks(marksState);
-      
+
       // Load comments
       const commentsState: { [key: string]: string } = {};
       questionsData?.forEach((q) => {
@@ -284,7 +284,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
 
   const initializeFabricCanvas = async (pageNum: number) => {
     const canvasEl = canvasRefs.current[pageNum];
-    
+
     if (!canvasEl) return;
 
     if (fabricCanvases.current[pageNum]) {
@@ -313,10 +313,10 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
     fabricCanvas.on("mouse:down", (opt: any) => {
       const currentTool = activeToolRef.current;
       if (currentTool === "pen" || currentTool === "eraser") return;
-      
+
       opt.e.preventDefault();
       const pointer = fabricCanvas.getPointer(opt.e);
-      
+
       if (currentTool === "tick") addPresetAnnotation("tick", pointer.x, pointer.y, pageNum);
       if (currentTool === "cross") addPresetAnnotation("cross", pointer.x, pointer.y, pageNum);
       if (currentTool === "oval") addPresetAnnotation("oval", pointer.x, pointer.y, pageNum);
@@ -324,14 +324,14 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
     });
 
     fabricCanvases.current[pageNum] = fabricCanvas;
-    
+
     // Load existing mark annotations for this page
     loadMarkAnnotationsForPage(pageNum, fabricCanvas);
   };
-  
+
   const loadMarkAnnotationsForPage = async (pageNum: number, canvas: FabricCanvas) => {
     if (!selectedPaper) return;
-    
+
     try {
       // Load mark annotations (text type) for this page
       const { data: markAnnotations, error } = await supabase
@@ -340,9 +340,9 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         .eq("answer_sheet_id", selectedPaper.id)
         .eq("page_number", pageNum)
         .eq("annotation_type", "text");
-      
+
       if (error) throw error;
-      
+
       markAnnotations?.forEach((ann: any) => {
         try {
           const content = ann.content ? JSON.parse(ann.content) : null;
@@ -363,9 +363,9 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
               hasControls: true,
               hasBorders: true,
             });
-            
+
             canvas.add(markText);
-            
+
             // Store in markAnnotations state
             const questionNum = ann.answer_sheet_questions?.question_number;
             if (questionNum) {
@@ -379,7 +379,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
           console.error("Error loading mark annotation:", err);
         }
       });
-      
+
       canvas.renderAll();
     } catch (error) {
       console.error("Error loading mark annotations for page:", error);
@@ -514,10 +514,10 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
     const max = marksPerAssignedQuestion[questionNumber] ?? Infinity;
     const clamped = Math.max(0, Math.min(selectedMarks, max));
     const questionKey = questionNumber.toString();
-    
+
     // Update marks state
     setMarks((prev) => ({ ...prev, [questionKey]: clamped }));
-    
+
     // Remove existing mark annotation for this question if any
     const existingAnnotation = markAnnotations[questionKey];
     if (existingAnnotation) {
@@ -528,7 +528,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         }
       });
     }
-    
+
     // Add new mark annotation to the current page
     const canvas = fabricCanvases.current[pageNumber];
     if (canvas && clamped >= 0) {
@@ -537,7 +537,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
       const totalQuestions = assignedQuestions.length;
       const verticalSpacing = pageHeight / Math.max(totalQuestions, 10); // Space them out
       const topPosition = pageHeight * 0.05 + (questionIndex * verticalSpacing);
-      
+
       // Create a text annotation showing the marks
       const markText = new IText(`Q${questionNumber}: ${clamped}/${max}`, {
         left: pageWidth * 0.75, // Position on right side
@@ -553,33 +553,27 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         selectable: true,
         hasControls: true,
         hasBorders: true,
-        shadow: {
-          color: 'rgba(0, 0, 0, 0.3)',
-          blur: 5,
-          offsetX: 2,
-          offsetY: 2,
-        },
       });
-      
+
       canvas.add(markText);
       canvas.renderAll();
-      
+
       // Store the annotation
       setMarkAnnotations((prev) => ({
         ...prev,
         [questionKey]: { ...markText, canvas, pageNumber },
       }));
-      
+
       // Save annotation to database
       await saveMarkAnnotation(questionNumber, clamped, markText, pageNumber);
     }
-    
+
     toast.success(`Marks ${clamped}/${max} assigned to Question ${questionNumber}`);
   };
-  
+
   const saveMarkAnnotation = async (questionNumber: number, marks: number, fabricObject: any, pageNum: number) => {
     if (!selectedPaper || !currentProfileId) return;
-    
+
     try {
       // Get or create question record
       const { data: questionData, error: questionError } = await supabase
@@ -596,9 +590,9 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         })
         .select()
         .single();
-      
+
       if (questionError) throw questionError;
-      
+
       // Save annotation
       const annotationData = {
         answer_sheet_id: selectedPaper.id,
@@ -611,7 +605,7 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         color: fabricObject.fill,
         created_by: currentProfileId,
       };
-      
+
       // Delete old mark annotations for this question
       if (questionData.id) {
         await supabase
@@ -621,12 +615,12 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
           .eq("question_id", questionData.id)
           .eq("annotation_type", "text");
       }
-      
+
       // Insert new annotation
       const { error: annotationError } = await supabase
         .from("answer_sheet_annotations")
         .insert(annotationData);
-      
+
       if (annotationError) throw annotationError;
     } catch (error) {
       console.error("Error saving mark annotation:", error);
@@ -752,9 +746,8 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
                     pendingPapers.map((paper) => (
                       <div
                         key={paper.id}
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-muted/50 ${
-                          selectedPaper?.id === paper.id ? "ring-2 ring-primary bg-primary/5" : ""
-                        }`}
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-muted/50 ${selectedPaper?.id === paper.id ? "ring-2 ring-primary bg-primary/5" : ""
+                          }`}
                         onClick={() => {
                           setSelectedPaper(paper);
                           setIsPapersSidebarOpen(false);
@@ -784,115 +777,11 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 relative">
+        <div className="flex-1 flex gap-4 min-w-0 relative">
           {selectedPaper ? (
             <>
-              {/* Floating Questions Sidebar */}
-              {isQuestionsSidebarOpen ? (
-                <Card className="absolute right-4 top-4 z-40 w-72 max-h-[80vh] flex flex-col shadow-xl border-2">
-                  <CardHeader className="flex-shrink-0 pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm">Questions</CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsQuestionsSidebarOpen(false)}
-                        className="h-6 w-6 p-0"
-                      >
-                        <XIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 overflow-auto p-3">
-                    <ScrollArea className="h-full">
-                      <div className="space-y-2">
-                        {assignedQuestions.map((questionNumber) => {
-                          const maxMarks = marksPerAssignedQuestion[questionNumber] ?? 0;
-                          const currentMarks = marks[questionNumber.toString()] ?? null;
-                          const isGraded = currentMarks !== null;
-                          const markOptions = Array.from({ length: maxMarks + 1 }, (_, i) => i);
-                          
-                          return (
-                            <div
-                              key={questionNumber}
-                              className={`p-2 border rounded transition-all text-xs ${
-                                selectedQuestion === questionNumber
-                                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                  : isGraded
-                                  ? "border-green-500 bg-green-50"
-                                  : "border-border hover:bg-muted/50"
-                              }`}
-                              onClick={() => setSelectedQuestion(questionNumber)}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <Label className="font-semibold text-xs cursor-pointer">
-                                  Q{questionNumber}
-                                </Label>
-                                {isGraded && (
-                                  <CheckCircle2 className="w-3 h-3 text-green-600" />
-                                )}
-                              </div>
-                              <Select
-                                value={currentMarks !== null ? currentMarks.toString() : "none"}
-                                onValueChange={(value) => {
-                                  if (value !== "none") {
-                                    handleQuestionMarks(questionNumber, parseInt(value));
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="h-7 text-xs">
-                                  <SelectValue placeholder="Select marks" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">Not graded</SelectItem>
-                                  {markOptions.map((mark) => (
-                                    <SelectItem key={mark} value={mark.toString()}>
-                                      {mark} / {maxMarks}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {isGraded && (
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  {currentMarks} / {maxMarks}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                  {/* Summary Footer */}
-                  <div className="border-t p-3 bg-muted/50">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs font-medium">Total:</span>
-                      <span className="text-sm font-bold">{totalObtainedMarks}</span>
-                    </div>
-                    <Button
-                      onClick={handleSavePaper}
-                      disabled={assignedQuestions.length === 0}
-                      className="w-full h-8 text-xs"
-                      size="sm"
-                    >
-                      <Save className="w-3 h-3 mr-1" />
-                      Submit
-                    </Button>
-                  </div>
-                </Card>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="absolute right-4 top-4 z-40 h-8 w-8 p-0 shadow-lg"
-                  onClick={() => setIsQuestionsSidebarOpen(true)}
-                >
-                  <Menu className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* PDF Viewer - Full Width */}
-              <Card className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+              {/* PDF Viewer - Adjusts width based on sidebar */}
+              <Card className={`flex-1 flex flex-col min-h-0 h-full overflow-hidden transition-all ${isQuestionsSidebarOpen ? 'mr-0' : ''}`}>
                 <CardHeader className="flex-shrink-0 pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">
@@ -1036,6 +925,109 @@ const PaperCheckingInterface = ({ preSelectedPaper, onClose }: PaperCheckingInte
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Questions Sidebar - Fixed on right, doesn't overlap */}
+              {isQuestionsSidebarOpen ? (
+                <Card className="w-72 flex-shrink-0 flex flex-col h-full shadow-lg border-2">
+                  <CardHeader className="flex-shrink-0 pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">Questions</CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsQuestionsSidebarOpen(false)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-auto p-3">
+                    <ScrollArea className="h-full">
+                      <div className="space-y-2">
+                        {assignedQuestions.map((questionNumber) => {
+                          const maxMarks = marksPerAssignedQuestion[questionNumber] ?? 0;
+                          const currentMarks = marks[questionNumber.toString()] ?? null;
+                          const isGraded = currentMarks !== null;
+                          const markOptions = Array.from({ length: maxMarks + 1 }, (_, i) => i);
+
+                          return (
+                            <div
+                              key={questionNumber}
+                              className={`p-2 border rounded transition-all text-xs ${selectedQuestion === questionNumber
+                                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                  : isGraded
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-border hover:bg-muted/50"
+                                }`}
+                              onClick={() => setSelectedQuestion(questionNumber)}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <Label className="font-semibold text-xs cursor-pointer">
+                                  Q{questionNumber}
+                                </Label>
+                                {isGraded && (
+                                  <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                )}
+                              </div>
+                              <Select
+                                value={currentMarks !== null ? currentMarks.toString() : "none"}
+                                onValueChange={(value) => {
+                                  if (value !== "none") {
+                                    handleQuestionMarks(questionNumber, parseInt(value));
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue placeholder="Select marks" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Not graded</SelectItem>
+                                  {markOptions.map((mark) => (
+                                    <SelectItem key={mark} value={mark.toString()}>
+                                      {mark} / {maxMarks}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {isGraded && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {currentMarks} / {maxMarks}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                  {/* Summary Footer */}
+                  <div className="border-t p-3 bg-muted/50">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-medium">Total:</span>
+                      <span className="text-sm font-bold">{totalObtainedMarks}</span>
+                    </div>
+                    <Button
+                      onClick={handleSavePaper}
+                      disabled={assignedQuestions.length === 0}
+                      className="w-full h-8 text-xs"
+                      size="sm"
+                    >
+                      <Save className="w-3 h-3 mr-1" />
+                      Submit
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0 shadow-lg self-start mt-4"
+                  onClick={() => setIsQuestionsSidebarOpen(true)}
+                >
+                  <Menu className="h-4 w-4" />
+                </Button>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">

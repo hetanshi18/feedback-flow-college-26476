@@ -426,7 +426,7 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
   }, [marks, assignedQuestions]);
 
   const handleSavePaper = async () => {
-    if (!selectedPaper || !currentTeacherId) {
+    if (!selectedPaper || !currentTeacherId || !currentProfileId) {
       toast.error("Please select a paper and ensure you are logged in");
       return;
     }
@@ -455,7 +455,7 @@ const PaperCheckingInterface = ({ preSelectedPaper }: PaperCheckingInterfaceProp
           question_number: qNum,
           obtained_marks: obtained,
           max_marks: max,
-          graded_by: currentTeacherId,
+          graded_by: currentProfileId,
           graded_at: new Date().toISOString(),
           comments: comments[qNum] || null,
         };

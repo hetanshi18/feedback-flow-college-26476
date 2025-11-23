@@ -384,14 +384,14 @@ const ExamStudentAssignmentDialog = ({ isOpen, onOpenChange, examId, examDetails
                               />
                             </TableCell>
                             <TableCell>
-                              {answerSheetUploads[student.id] ? (
-                                <Badge className="bg-green-100 text-green-800 border-green-200">
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  Uploaded
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">Pending</Badge>
-                              )}
+                                {answerSheetUploads[student.id] ? (
+                                  <Badge className="bg-academic-navy/20 text-academic-navy border-academic-navy/30">
+                                    <FileText className="h-3 w-3 mr-1" />
+                                    Uploaded
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-academic-navy/30 text-academic-navy bg-academic-navy/20">Pending</Badge>
+                                )}
                             </TableCell>
                           </TableRow>
                         ))}

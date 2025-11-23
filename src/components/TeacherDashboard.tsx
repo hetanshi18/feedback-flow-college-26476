@@ -17,6 +17,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 import PaperCheckingInterface from './PaperCheckingInterface';
 import UploadedAnswerSheets from './UploadedAnswerSheets';
 import StudentAnswerSheetViewer from './StudentAnswerSheetViewer';
+import { ScrollAnimatedCard } from './ScrollAnimatedCard';
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
@@ -204,15 +205,15 @@ const TeacherDashboard = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-warning/10 text-warning border-warning/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       case 'under_review':
-        return 'bg-primary/10 text-primary border-primary/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       case 'resolved':
-        return 'bg-success/10 text-success border-success/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       case 'rejected':
-        return 'bg-destructive/10 text-destructive border-destructive/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       default:
-        return 'bg-muted/10 text-muted-foreground border-muted/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
     }
   };
 
@@ -587,11 +588,11 @@ const TeacherDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {selectedExamPapers.map((paper) => (
-                    <div
-                      key={paper.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
+                  {selectedExamPapers.map((paper, index) => (
+                    <ScrollAnimatedCard key={paper.id} delay={index * 100}>
+                      <div
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
                       <div className="flex-1">
                         <h4 className="font-medium">{paper.student?.name}</h4>
                         <p className="text-sm text-muted-foreground">
@@ -608,13 +609,13 @@ const TeacherDashboard = () => {
                               <p className="text-sm font-medium">
                                 {paper.obtained_marks}/{paper.total_marks} marks
                               </p>
-                              <Badge className="mt-1 bg-success/10 text-success border-success/20">
+                              <Badge className="mt-1 bg-academic-navy/20 text-academic-navy border-academic-navy/30">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Graded
                               </Badge>
                             </div>
                           ) : (
-                            <Badge className="bg-warning/10 text-warning border-warning/20">
+                            <Badge className="bg-academic-navy/20 text-academic-navy border-academic-navy/30">
                               <Clock className="h-3 w-3 mr-1" />
                               Pending
                             </Badge>
@@ -643,6 +644,7 @@ const TeacherDashboard = () => {
                         </Button>
                       </div>
                     </div>
+                    </ScrollAnimatedCard>
                   ))}
                   {selectedExamPapers.length === 0 && (
                     <div className="text-center py-12">
@@ -854,8 +856,9 @@ const TeacherDashboard = () => {
 
               {/* Grievances List */}
               <div className="space-y-4">
-                {selectedSubjectGrievances.map((grievance) => (
-                  <Card key={grievance.id}>
+                {selectedSubjectGrievances.map((grievance, index) => (
+                  <ScrollAnimatedCard key={grievance.id} delay={index * 100}>
+                    <Card>
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <div>
@@ -1063,7 +1066,8 @@ const TeacherDashboard = () => {
                         Submitted: {new Date(grievance.submitted_at).toLocaleDateString()}
                       </div>
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </ScrollAnimatedCard>
                 ))}
                 {selectedSubjectGrievances.length === 0 && (
                   <div className="text-center py-12">

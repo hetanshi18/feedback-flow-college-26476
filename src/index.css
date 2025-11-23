@@ -8,33 +8,33 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 215 25% 27%;
+    --background: 210 20% 97%;
+    --foreground: 215 25% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
+    --card-foreground: 215 25% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --popover-foreground: 215 25% 20%;
 
-    --primary: 214 84% 56%;
+    --primary: 215 80% 38%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 215 25% 27%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 215 25% 20%;
 
-    --muted: 210 40% 96%;
+    --muted: 210 40% 94%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 214 32% 91%;
-    --accent-foreground: 215 25% 27%;
+    --accent: 210 40% 94%;
+    --accent-foreground: 215 25% 20%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 214 84% 56%;
+    --border: 214 32% 85%;
+    --input: 214 32% 90%;
+    --ring: 215 80% 38%;
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 98%;
@@ -48,8 +48,22 @@ All colors MUST be HSL.
     --academic-maroon: 0 65% 35%;
     --academic-gold: 45 95% 50%;
     
-    --gradient-academic: linear-gradient(135deg, hsl(var(--academic-maroon)), hsl(var(--academic-gold)));
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 98%;
+    
+    --purple: 262 83% 58%;
+    --purple-foreground: 0 0% 98%;
+    
+    --teal: 173 80% 40%;
+    --teal-foreground: 0 0% 98%;
+    
+    --indigo: 239 84% 67%;
+    --indigo-foreground: 0 0% 98%;
+    
+    --gradient-academic: linear-gradient(135deg, hsl(var(--academic-maroon)), hsl(var(--primary)));
     --gradient-dark: linear-gradient(135deg, hsl(var(--academic-navy)), hsl(var(--academic-blue)));
+    --gradient-info: linear-gradient(135deg, hsl(var(--info)), hsl(var(--academic-blue)));
+    --gradient-purple: linear-gradient(135deg, hsl(var(--purple)), hsl(var(--indigo)));
     --shadow-academic: 0 10px 30px -10px hsl(var(--academic-maroon) / 0.3);
 
     --radius: 0.75rem;
@@ -65,32 +79,32 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 215 28% 17%;
+    --background: 215 28% 15%;
     --foreground: 210 40% 98%;
 
-    --card: 215 25% 20%;
+    --card: 215 25% 18%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 215 25% 20%;
+    --popover: 215 25% 18%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 214 84% 56%;
+    --primary: 215 80% 50%;
     --primary-foreground: 215 28% 17%;
 
-    --secondary: 215 25% 25%;
+    --secondary: 215 25% 22%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 215 25% 25%;
+    --muted: 215 25% 22%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 215 25% 25%;
+    --accent: 215 25% 22%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 215 25% 25%;
-    --input: 215 25% 25%;
+    --border: 215 25% 22%;
+    --input: 215 25% 22%;
     --ring: 214 84% 56%;
 
     --success: 142 76% 36%;
@@ -105,8 +119,22 @@ All colors MUST be HSL.
     --academic-maroon: 0 65% 45%;
     --academic-gold: 45 95% 60%;
     
+    --info: 199 89% 58%;
+    --info-foreground: 215 28% 17%;
+    
+    --purple: 262 83% 68%;
+    --purple-foreground: 215 28% 17%;
+    
+    --teal: 173 80% 50%;
+    --teal-foreground: 215 28% 17%;
+    
+    --indigo: 239 84% 77%;
+    --indigo-foreground: 215 28% 17%;
+    
     --gradient-academic: linear-gradient(135deg, hsl(var(--academic-maroon)), hsl(var(--academic-gold)));
     --gradient-dark: linear-gradient(135deg, hsl(var(--academic-navy)), hsl(var(--academic-blue)));
+    --gradient-info: linear-gradient(135deg, hsl(var(--info)), hsl(var(--academic-blue)));
+    --gradient-purple: linear-gradient(135deg, hsl(var(--purple)), hsl(var(--indigo)));
     --shadow-academic: 0 10px 30px -10px hsl(var(--academic-blue) / 0.4);
 
     --sidebar-background: 240 5.9% 10%;
@@ -127,5 +155,37 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+
+  .animate-fade-in-up-delay-1 {
+    animation: fadeInUp 0.6s ease-out 0.1s forwards;
+    opacity: 0;
+  }
+
+  .animate-fade-in-up-delay-2 {
+    animation: fadeInUp 0.6s ease-out 0.2s forwards;
+    opacity: 0;
+  }
+
+  .animate-fade-in-up-delay-3 {
+    animation: fadeInUp 0.6s ease-out 0.3s forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

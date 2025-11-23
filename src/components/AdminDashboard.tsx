@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ScrollAnimatedCard } from '@/components/ScrollAnimatedCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
@@ -277,23 +278,25 @@ const AdminDashboard = () => {
           </div>
           
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {departments.map((dept) => (
-              <Card key={dept.id}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{dept.name}</CardTitle>
-                  <CardDescription>Code: {dept.code}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Teachers: {teachers.filter(t => t.department === dept.name).length}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Subjects: {subjects.filter(s => s.department_name === dept.name).length}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+            {departments.map((dept, index) => (
+              <ScrollAnimatedCard key={dept.id} delay={index * 100}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{dept.name}</CardTitle>
+                    <CardDescription>Code: {dept.code}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Teachers: {teachers.filter(t => t.department === dept.name).length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Subjects: {subjects.filter(s => s.department_name === dept.name).length}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </ScrollAnimatedCard>
             ))}
           </div>
         </TabsContent>
@@ -308,24 +311,26 @@ const AdminDashboard = () => {
           </div>
           
           <div className="grid gap-4">
-            {teachers.map((teacher) => (
-              <Card key={teacher.id}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{teacher.name}</CardTitle>
-                  <CardDescription>{teacher.email}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <Badge variant="outline">{teacher.department}</Badge>
+            {teachers.map((teacher, index) => (
+              <ScrollAnimatedCard key={teacher.id} delay={index * 100}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{teacher.name}</CardTitle>
+                    <CardDescription>{teacher.email}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <Badge variant="outline">{teacher.department}</Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">Edit</Button>
+                        <Button variant="outline" size="sm">View Assignments</Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Edit</Button>
-                      <Button variant="outline" size="sm">View Assignments</Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </ScrollAnimatedCard>
             ))}
           </div>
         </TabsContent>
@@ -336,15 +341,16 @@ const AdminDashboard = () => {
           </div>
           
           <div className="grid gap-4">
-            {exams.map((exam) => (
-              <Card key={exam.id}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{exam.name}</CardTitle>
-                  <CardDescription>
-                    {exam.subject?.name} - {exam.subject?.department?.name}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            {exams.map((exam, index) => (
+              <ScrollAnimatedCard key={exam.id} delay={index * 100}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{exam.name}</CardTitle>
+                    <CardDescription>
+                      {exam.subject?.name} - {exam.subject?.department?.name}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Date</p>
@@ -409,7 +415,8 @@ const AdminDashboard = () => {
                     </Select>
                   </div>
                 </CardContent>
-              </Card>
+                </Card>
+              </ScrollAnimatedCard>
             ))}
           </div>
         </TabsContent>

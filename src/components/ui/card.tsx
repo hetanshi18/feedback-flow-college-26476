@@ -1,3 +1,4 @@
+// src/components/ui/card.tsx
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -9,7 +10,11 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      // BASE STYLES: Thicker border, using the new subtle border color.
+      "rounded-lg border-2 border-card-border-subtle bg-card text-card-foreground shadow-card-subtle transition-all duration-300 ease-in-out cursor-pointer",
+      
+      // HOVER EFFECT: Card lifts slightly and the border color changes to a transparent Royal Blue
+      "hover:shadow-card-elevated hover:-translate-y-1 hover:border-primary/50",
       className
     )}
     {...props}

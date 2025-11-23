@@ -32,6 +32,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import StudentAnswerSheetViewer from "./StudentAnswerSheetViewer";
+import { ScrollAnimatedCard } from "./ScrollAnimatedCard";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -125,15 +126,15 @@ const StudentDashboard = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-warning/10 text-warning border-warning/20";
+        return "bg-academic-navy/20 text-academic-navy border-academic-navy/30";
       case "under_review":
-        return "bg-primary/10 text-primary border-primary/20";
+        return "bg-academic-navy/20 text-academic-navy border-academic-navy/30";
       case "resolved":
-        return "bg-success/10 text-success border-success/20";
+        return "bg-teal/20 text-teal border-teal/30";
       case "rejected":
-        return "bg-destructive/10 text-destructive border-destructive/20";
+        return "bg-destructive/20 text-destructive border-destructive/30";
       default:
-        return "bg-muted/10 text-muted-foreground border-muted/20";
+        return "bg-academic-navy/20 text-academic-navy border-academic-navy/30";
     }
   };
 
@@ -152,21 +153,14 @@ const StudentDashboard = () => {
     <div className="max-w-7xl mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            Student Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            View your answer sheets and submit grievances
-          </p>
+          <h1 className="text-3xl font-bold text-foreground">Student Dashboard</h1>
+          <p className="text-muted-foreground">View your answer sheets and submit grievances</p>
         </div>
       </div>
 
       <Tabs defaultValue="answer-sheets" className="space-y-4">
         <TabsList>
-          <TabsTrigger
-            value="answer-sheets"
-            className="flex items-center gap-2"
-          >
+          <TabsTrigger value="answer-sheets" className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Answer Sheets
           </TabsTrigger>
@@ -258,47 +252,57 @@ const StudentDashboard = () => {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {userAnswerSheets.map((sheet) => (
-              <Card
-                key={sheet.id}
-                className="hover:shadow-md transition-shadow"
-              >
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    {sheet.exam?.subject?.name}
-                  </CardTitle>
-                  <CardDescription>{sheet.exam?.name}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Score:</span>
-                    <span className="font-semibold">
-                      {sheet.obtained_marks || 0}/{sheet.total_marks || 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Grader:</span>
-                    <span>{sheet.grader?.name || "Not graded"}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Date:</span>
-                    <span>
-                      {new Date(sheet.upload_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    className="w-full mt-3"
-                    onClick={() => {
-                      setViewingSheet(sheet);
-                      setViewerOpen(true);
-                    }}
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Answer Sheet
-                  </Button>
-                </CardContent>
-              </Card>
+            {userAnswerSheets.map((sheet, index) => (
+              <ScrollAnimatedCard key={sheet.id} delay={index * 100}>
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      {sheet.exam?.subject?.name}
+                    </CardTitle>
+                    <CardDescription>{sheet.exam?.name}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Score:</span>
+                      <span className="font-semibold">
+                        {sheet.obtained_marks || 0}/{sheet.total_marks || 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Grader:</span>
+                      <span>{sheet.grader?.name || "Not graded"}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Date:</span>
+                      <span>
+                        {new Date(sheet.upload_date).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <Button 
+                      variant="outline"
+                      className="w-full mt-3"
+                      style={{
+                        backgroundColor: 'hsl(215 28% 17% / 0.1)',
+                        color: 'hsl(215 28% 17%)',
+                        borderColor: 'hsl(215 28% 17% / 0.3)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'hsl(215 28% 17% / 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'hsl(215 28% 17% / 0.1)';
+                      }}
+                      onClick={() => {
+                        setViewingSheet(sheet);
+                        setViewerOpen(true);
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Answer Sheet
+                    </Button>
+                  </CardContent>
+                </Card>
+              </ScrollAnimatedCard>
             ))}
           </div>
         </TabsContent>
@@ -307,61 +311,63 @@ const StudentDashboard = () => {
           <h2 className="text-xl font-semibold">Your Grievances</h2>
 
           <div className="space-y-4">
-            {userGrievances.map((grievance) => (
-              <Card key={grievance.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">
-                        {grievance.answer_sheet?.exam?.subject?.name}
-                      </CardTitle>
-                      <CardDescription>
-                        {grievance.answer_sheet?.exam?.name} - Question{" "}
-                        {grievance.question_number}
-                        {grievance.sub_question &&
-                          ` (${grievance.sub_question})`}
-                      </CardDescription>
-                    </div>
-                    <Badge className={getStatusColor(grievance.status)}>
-                      <div className="flex items-center gap-1">
-                        {getStatusIcon(grievance.status)}
-                        {grievance.status.replace("_", " ")}
+            {userGrievances.map((grievance, index) => (
+              <ScrollAnimatedCard key={grievance.id} delay={index * 100}>
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">
+                          {grievance.answer_sheet?.exam?.subject?.name}
+                        </CardTitle>
+                        <CardDescription>
+                          {grievance.answer_sheet?.exam?.name} - Question{" "}
+                          {grievance.question_number}
+                          {grievance.sub_question &&
+                            ` (${grievance.sub_question})`}
+                        </CardDescription>
                       </div>
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Your Grievance:
-                    </p>
-                    <p className="text-sm mt-1">{grievance.grievance_text}</p>
-                  </div>
-
-                  {grievance.teacher_response && (
-                    <div className="bg-muted/50 p-3 rounded-lg">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Teacher Response:
-                      </p>
-                      <p className="text-sm mt-1">
-                        {grievance.teacher_response}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Responded on:{" "}
-                        {new Date(grievance.reviewed_at).toLocaleDateString()}
-                      </p>
+                      <Badge className={getStatusColor(grievance.status)}>
+                        <div className="flex items-center gap-1">
+                          {getStatusIcon(grievance.status)}
+                          {grievance.status.replace("_", " ")}
+                        </div>
+                      </Badge>
                     </div>
-                  )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Your Grievance:
+                      </p>
+                      <p className="text-sm mt-1">{grievance.grievance_text}</p>
+                    </div>
 
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>
-                      Submitted:{" "}
-                      {new Date(grievance.submitted_at).toLocaleDateString()}
-                    </span>
-                    <span>Reviewer: {grievance.reviewer?.name}</span>
-                  </div>
-                </CardContent>
-              </Card>
+                    {grievance.teacher_response && (
+                      <div className="bg-muted/50 p-3 rounded-lg">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Teacher Response:
+                        </p>
+                        <p className="text-sm mt-1">
+                          {grievance.teacher_response}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Responded on:{" "}
+                          {new Date(grievance.reviewed_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>
+                        Submitted:{" "}
+                        {new Date(grievance.submitted_at).toLocaleDateString()}
+                      </span>
+                      <span>Reviewer: {grievance.reviewer?.name}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </ScrollAnimatedCard>
             ))}
           </div>
         </TabsContent>

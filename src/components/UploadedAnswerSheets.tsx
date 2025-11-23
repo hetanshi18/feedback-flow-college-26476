@@ -84,13 +84,13 @@ const UploadedAnswerSheets = ({ examId, examName }: UploadedAnswerSheetsProps) =
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-warning/10 text-warning border-warning/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       case 'in_progress':
-        return 'bg-primary/10 text-primary border-primary/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       case 'completed':
-        return 'bg-success/10 text-success border-success/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
       default:
-        return 'bg-muted/10 text-muted-foreground border-muted/20';
+        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
     }
   };
 

@@ -10,6 +10,10 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, LogIn, UserPlus, GraduationCap, Users, Shield, BookOpen } from 'lucide-react';
 import { useEffect } from 'react';
 
+// Lottie Imports
+import Lottie from 'lottie-react';
+import graduationAnimation from '@/assets/graduation-hat.json'; 
+
 const Auth = () => {
   const { signIn, signUp, isLoading, user } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
@@ -118,13 +122,26 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 p-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Exam Management System</h1>
+
+      <div className="w-full max-w-md space-y-6"> 
+        
+        {/* 💡 UPDATED: Lottie next to title, large size, centered block */}
+        <div className="flex flex-col items-center space-y-2"> 
+          <div className="flex items-center justify-center">
+            <div className="w-32 h-32 mr-2"> {/* Restored requested large size */}
+              <Lottie 
+                animationData={graduationAnimation} 
+                loop={true} 
+                autoplay={true} 
+              />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Exam Management System</h1>
+          </div>
           <p className="text-muted-foreground">Sign in to your account or create a new one</p>
         </div>
+        {/* 💡 END UPDATED HEADER */}
 
-        <Card className="backdrop-blur-sm border-primary/10">
+        <Card className="backdrop-blur-sm shadow-xl border-t-4 border-t-primary/70">
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="signin" className="flex items-center gap-2">

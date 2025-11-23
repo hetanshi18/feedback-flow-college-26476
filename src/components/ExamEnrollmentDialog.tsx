@@ -199,11 +199,11 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="bg-gradient-to-r from-academic-blue/10 via-purple/10 to-info/10 -mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-lg border-b border-academic-blue/20">
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-academic-blue to-purple bg-clip-text text-transparent">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">
             Exam Enrollment Management
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
+          <DialogDescription>
             {preselectedExamId ? 'Enroll students and upload their answer sheets for the selected exam' : 'Select an exam, enroll students, and upload their answer sheets'}
           </DialogDescription>
         </DialogHeader>
@@ -211,17 +211,17 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
         <div className="space-y-6">
           {/* Exam Selection - only show if no preselected exam */}
           {!preselectedExamId && (
-            <div className="space-y-2 p-4 rounded-lg bg-gradient-to-r from-academic-blue/5 to-purple/5 border-2 border-academic-blue/20">
-              <Label htmlFor="exam-select" className="text-academic-navy dark:text-academic-blue font-semibold text-base">
+            <div className="space-y-2">
+              <Label htmlFor="exam-select" className="font-semibold text-base">
                 Select Exam
               </Label>
               <Select value={selectedExamId} onValueChange={setSelectedExamId}>
-                <SelectTrigger className="border-2 border-academic-blue/30 focus:border-academic-blue focus:ring-academic-blue/20">
+                <SelectTrigger>
                   <SelectValue placeholder="Choose an existing exam" />
                 </SelectTrigger>
                 <SelectContent>
                   {exams.map((exam) => (
-                    <SelectItem key={exam.id} value={exam.id} className="hover:bg-academic-blue/10">
+                    <SelectItem key={exam.id} value={exam.id}>
                       {exam.name} - {exam.subject?.name} ({exam.subject?.department?.name})
                     </SelectItem>
                   ))}
@@ -231,29 +231,28 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
           )}
 
           {selectedExam && (
-            <Card className="border-2 border-academic-blue/30 shadow-lg bg-gradient-to-br from-card to-academic-light/50">
-              <CardHeader className="bg-gradient-to-r from-academic-blue/10 to-info/10 border-b border-academic-blue/20">
-                <CardTitle className="text-xl font-bold text-academic-navy dark:text-academic-blue flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-academic-blue"></div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl font-bold">
                   Exam Details
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div className="p-3 rounded-lg bg-purple/10 border border-purple/20">
-                    <span className="font-semibold text-purple dark:text-purple-foreground block mb-1">Subject:</span>
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <span className="font-semibold text-muted-foreground block mb-1">Subject:</span>
                     <p className="text-foreground">{selectedExam.subject?.name}</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-teal/10 border border-teal/20">
-                    <span className="font-semibold text-teal dark:text-teal-foreground block mb-1">Department:</span>
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <span className="font-semibold text-muted-foreground block mb-1">Department:</span>
                     <p className="text-foreground">{selectedExam.subject?.department?.name}</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-info/10 border border-info/20">
-                    <span className="font-semibold text-info dark:text-info-foreground block mb-1">Date:</span>
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <span className="font-semibold text-muted-foreground block mb-1">Date:</span>
                     <p className="text-foreground">{new Date(selectedExam.exam_date).toLocaleDateString()}</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-academic-gold/20 border border-academic-gold/30">
-                    <span className="font-semibold text-academic-gold block mb-1">Total Marks:</span>
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <span className="font-semibold text-muted-foreground block mb-1">Total Marks:</span>
                     <p className="text-foreground font-bold">{selectedExam.total_marks}</p>
                   </div>
                 </div>
@@ -263,26 +262,26 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
 
           {selectedExamId && (
             <Tabs defaultValue="enrollment" className="space-y-4">
-              <TabsList className="bg-academic-light dark:bg-academic-navy/30 border-2 border-academic-blue/20">
-                <TabsTrigger value="enrollment" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-academic-blue data-[state=active]:to-purple data-[state=active]:text-white data-[state=active]:font-semibold">
+              <TabsList>
+                <TabsTrigger value="enrollment">
                   Student Enrollment
                 </TabsTrigger>
-                <TabsTrigger value="upload" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal data-[state=active]:to-info data-[state=active]:text-white data-[state=active]:font-semibold">
+                <TabsTrigger value="upload">
                   Answer Sheet Upload
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="enrollment" className="space-y-4">
                 {/* Add Students */}
-                <div className="flex space-x-2 p-4 rounded-lg bg-gradient-to-r from-purple/5 to-academic-blue/5 border-2 border-purple/20">
+                <div className="flex space-x-2">
                   <div className="flex-1">
                     <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
-                      <SelectTrigger className="border-2 border-purple/30 focus:border-purple focus:ring-purple/20">
+                      <SelectTrigger>
                         <SelectValue placeholder="Select student to add" />
                       </SelectTrigger>
                       <SelectContent>
                         {availableStudents.map((student) => (
-                          <SelectItem key={student.id} value={student.id} className="hover:bg-purple/10">
+                          <SelectItem key={student.id} value={student.id}>
                             {student.name} ({student.student_id}) - {student.email} ({student.department})
                           </SelectItem>
                         ))}
@@ -291,7 +290,6 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
                   </div>
                   <Button
                     onClick={handleAddStudent}
-                    className="bg-academic-navy text-white hover:bg-academic-navy/90 font-semibold shadow-lg"
                   >
                     <UserPlus className="h-4 w-4 mr-2" />
                     Add Student
@@ -300,26 +298,23 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
 
                 {/* Enrolled Students */}
                 {enrolledStudents.length > 0 && (
-                  <div className="border-2 border-academic-blue/20 rounded-lg overflow-hidden shadow-md bg-card">
+                  <div className="rounded-lg overflow-hidden border">
                     <Table>
-                      <TableHeader className="bg-gradient-to-r from-academic-blue/20 to-purple/20">
-                        <TableRow className="border-academic-blue/30">
-                          <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Name</TableHead>
-                          <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Email</TableHead>
-                          <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Department</TableHead>
-                          <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Actions</TableHead>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {enrolledStudents.map((student, index) => (
-                          <TableRow
-                            key={student.id}
-                            className={`border-academic-blue/10 ${index % 2 === 0 ? 'bg-academic-light/30 dark:bg-academic-navy/10' : 'bg-card'}`}
-                          >
-                            <TableCell className="font-medium text-foreground">{student.name}</TableCell>
+                        {enrolledStudents.map((student) => (
+                          <TableRow key={student.id}>
+                            <TableCell className="font-medium">{student.name}</TableCell>
                             <TableCell className="text-muted-foreground">{student.email}</TableCell>
                             <TableCell>
-                              <Badge variant="secondary" className="bg-academic-navy/20 text-academic-navy border-academic-navy/30">
+                              <Badge variant="secondary">
                                 {student.department}
                               </Badge>
                             </TableCell>
@@ -328,7 +323,7 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleRemoveStudent(student.id)}
-                                className="border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -341,12 +336,11 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
                 )}
 
                 <div className="flex justify-between items-center">
-                  <Badge className="bg-academic-navy/20 text-academic-navy border-academic-navy/30 px-4 py-2 text-sm font-semibold shadow-md">
+                  <Badge variant="secondary" className="px-4 py-2 text-sm font-semibold">
                     {enrolledStudents.length} {enrolledStudents.length === 1 ? 'student' : 'students'} enrolled
                   </Badge>
                   <Button
                     onClick={handleSaveEnrollment}
-                    className="bg-academic-navy text-white hover:bg-academic-navy/90 font-semibold shadow-lg"
                   >
                     Save Enrollment
                   </Button>
@@ -355,8 +349,8 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
 
               <TabsContent value="upload" className="space-y-4">
                 {enrolledStudents.length === 0 ? (
-                  <div className="text-center py-12 px-4 rounded-lg bg-gradient-to-br from-warning/10 to-academic-gold/10 border-2 border-warning/20">
-                    <p className="text-warning font-semibold text-lg mb-2">
+                  <div className="text-center py-12 px-4 rounded-lg border bg-muted/50">
+                    <p className="font-semibold text-lg mb-2">
                       No Students Enrolled Yet
                     </p>
                     <p className="text-muted-foreground">
@@ -365,22 +359,19 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
                   </div>
                 ) : (
                   <>
-                    <div className="border-2 border-teal/20 rounded-lg overflow-hidden shadow-md bg-card">
+                    <div className="rounded-lg overflow-hidden border">
                       <Table>
-                        <TableHeader className="bg-gradient-to-r from-teal/20 to-info/20">
-                          <TableRow className="border-teal/30">
-                            <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Student Name</TableHead>
-                            <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Answer Sheet</TableHead>
-                            <TableHead className="font-bold text-academic-navy dark:text-academic-blue">Status</TableHead>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Student Name</TableHead>
+                            <TableHead>Answer Sheet</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {enrolledStudents.map((student, index) => (
-                            <TableRow
-                              key={student.id}
-                              className={`border-teal/10 ${index % 2 === 0 ? 'bg-academic-light/30 dark:bg-academic-navy/10' : 'bg-card'}`}
-                            >
-                              <TableCell className="font-medium text-foreground">{student.name}</TableCell>
+                          {enrolledStudents.map((student) => (
+                            <TableRow key={student.id}>
+                              <TableCell className="font-medium">{student.name}</TableCell>
                               <TableCell>
                                 <Input
                                   type="file"
@@ -391,17 +382,17 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
                                       handleFileUpload(student.id, file);
                                     }
                                   }}
-                                  className="max-w-[200px] border-info/30 focus:border-info focus:ring-info/20"
+                                  className="max-w-[200px]"
                                 />
                               </TableCell>
                               <TableCell>
                                 {answerSheetUploads[student.id] ? (
-                                  <Badge className="bg-academic-navy/20 text-academic-navy border-academic-navy/30 shadow-sm">
+                                  <Badge>
                                     <FileText className="h-3 w-3 mr-1" />
                                     Uploaded
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline" className="border-academic-navy/30 text-academic-navy bg-academic-navy/20">
+                                  <Badge variant="outline">
                                     Pending
                                   </Badge>
                                 )}
@@ -413,12 +404,11 @@ const ExamEnrollmentDialog = ({ isOpen, onOpenChange, preselectedExamId }: ExamE
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <Badge className="bg-academic-navy/20 text-academic-navy border-academic-navy/30 px-4 py-2 text-sm font-semibold shadow-md">
+                      <Badge variant="secondary" className="px-4 py-2 text-sm font-semibold">
                         {Object.keys(answerSheetUploads).length} of {enrolledStudents.length} uploaded
                       </Badge>
                       <Button
                         onClick={handleBulkUpload}
-                        className="bg-academic-navy text-white hover:bg-academic-navy/90 font-semibold shadow-lg"
                       >
                         <Upload className="h-4 w-4 mr-2" />
                         Process All Uploads

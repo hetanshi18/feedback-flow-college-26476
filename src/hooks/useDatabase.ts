@@ -127,9 +127,11 @@ export const useExams = () => {
       setLoading(true);
       
       // Simplified query that works with our RLS policies
+      // Order by created_at descending so newest exams appear first
       const { data: examsData, error: examsError } = await supabase
         .from('exams')
-        .select('*');
+        .select('*')
+        .order('created_at', { ascending: false });
       
       if (examsError) throw examsError;
       

@@ -280,19 +280,14 @@ const StudentDashboard = () => {
                     </div>
                     <Button 
                       variant="outline"
-                      className="w-full mt-3"
-                      style={{
-                        backgroundColor: 'hsl(215 28% 17% / 0.1)',
-                        color: 'hsl(215 28% 17%)',
-                        borderColor: 'hsl(215 28% 17% / 0.3)',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'hsl(215 28% 17% / 0.2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'hsl(215 28% 17% / 0.1)';
-                      }}
+                      disabled={!sheet.grader?.name}
+                      className={`w-full mt-3 ${
+                        sheet.grader?.name
+                          ? 'bg-success/15 text-success border-success/30 hover:bg-success/20'
+                          : 'bg-muted text-muted-foreground border-border cursor-not-allowed opacity-70 hover:bg-muted'
+                      }`}
                       onClick={() => {
+                        if (!sheet.grader?.name) return;
                         setViewingSheet(sheet);
                         setViewerOpen(true);
                       }}
@@ -344,8 +339,16 @@ const StudentDashboard = () => {
                     </div>
 
                     {grievance.teacher_response && (
-                      <div className="bg-muted/50 p-3 rounded-lg">
-                        <p className="text-sm font-medium text-muted-foreground">
+                      <div
+                        className={`p-3 rounded-lg border ${
+                          grievance.status === "resolved"
+                            ? "bg-success/10 border-success/20 text-success"
+                            : grievance.status === "rejected"
+                              ? "bg-destructive/10 border-destructive/20 text-destructive"
+                              : "bg-muted/50 border-border text-foreground"
+                        }`}
+                      >
+                        <p className="text-sm font-medium">
                           Teacher Response:
                         </p>
                         <p className="text-sm mt-1">

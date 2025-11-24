@@ -76,6 +76,13 @@ const TeacherDashboard = () => {
     { name: 'Unchecked', value: uncheckedPapers, color: 'hsl(var(--warning))' },
   ];
 
+  // Ensure newest exams appear first
+  const orderedTeacherExams = [...teacherExams].sort((a, b) => {
+    const dateA = new Date(a.exam?.created_at || a.exam?.exam_date || 0).getTime();
+    const dateB = new Date(b.exam?.created_at || b.exam?.exam_date || 0).getTime();
+    return dateB - dateA;
+  });
+
   // Get papers for selected exam
   const selectedExamPapers = selectedExamId 
     ? answerSheets.filter(sheet => sheet.exam_id === selectedExamId)
@@ -205,15 +212,15 @@ const TeacherDashboard = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
+        return 'bg-destructive/15 text-destructive border-destructive/30';
       case 'under_review':
-        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
+        return 'bg-info/15 text-info border-info/30';
       case 'resolved':
-        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
+        return 'bg-success/15 text-success border-success/30';
       case 'rejected':
-        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
+        return 'bg-muted text-muted-foreground border-border';
       default:
-        return 'bg-academic-navy/20 text-academic-navy border-academic-navy/30';
+        return 'bg-muted text-muted-foreground border-border';
     }
   };
 
@@ -269,10 +276,10 @@ const TeacherDashboard = () => {
         <TabsContent value="overview" className="space-y-6">
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
+            <Card className="border-warning">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <h3 className="text-sm font-medium">Papers to Grade</h3>
-                <FileText className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium text-warning">Papers to Grade</h3>
+                <FileText className="h-4 w-4 text-warning" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{pendingPapers.length}</div>
@@ -282,10 +289,10 @@ const TeacherDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-success">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <h3 className="text-sm font-medium">Completed</h3>
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium text-success">Completed</h3>
+                <CheckCircle className="h-4 w-4 text-success" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{completedPapers.length}</div>
@@ -295,10 +302,10 @@ const TeacherDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-destructive">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <h3 className="text-sm font-medium">Pending Grievances</h3>
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium text-destructive">Pending Grievances</h3>
+                <MessageSquare className="h-4 w-4 text-destructive" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{pendingGrievances.length}</div>
@@ -515,7 +522,7 @@ const TeacherDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {teacherExams.map((assignment) => {
+                  {orderedTeacherExams.map((assignment) => {
                     const examPapers = answerSheets.filter(sheet => sheet.exam_id === assignment.exam.id);
                     const examPending = examPapers.filter(sheet => sheet.grading_status === 'pending').length;
                     const examCompleted = examPapers.filter(sheet => sheet.grading_status === 'completed').length;
@@ -544,12 +551,12 @@ const TeacherDashboard = () => {
                           <div className="text-right">
                             <p className="text-sm font-medium">{examPapers.length} Papers</p>
                             <div className="flex gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                <CheckCircle className="h-3 w-3 mr-1" />
+                              <Badge variant="outline" className="text-xs bg-success/15 text-success border-success/30">
+                                <CheckCircle className="mr-1 h-3 w-3" />
                                 {examCompleted}
                               </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                <Clock className="h-3 w-3 mr-1" />
+                              <Badge variant="outline" className="text-xs bg-destructive/15 text-destructive border-destructive/30">
+                                <Clock className="mr-1 h-3 w-3" />
                                 {examPending}
                               </Badge>
                             </div>
@@ -606,16 +613,16 @@ const TeacherDashboard = () => {
                         <div className="text-right">
                           {paper.grading_status === 'completed' ? (
                             <div>
-                              <p className="text-sm font-medium">
+                              <p className="text-sm font-medium text-success">
                                 {paper.obtained_marks}/{paper.total_marks} marks
                               </p>
-                              <Badge className="mt-1 bg-academic-navy/20 text-academic-navy border-academic-navy/30">
+                              <Badge className="mt-1 bg-success/15 text-success border-success/30">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Graded
                               </Badge>
                             </div>
                           ) : (
-                            <Badge className="bg-academic-navy/20 text-academic-navy border-academic-navy/30">
+                            <Badge className="bg-destructive/15 text-destructive border-destructive/30">
                               <Clock className="h-3 w-3 mr-1" />
                               Pending
                             </Badge>
@@ -1051,7 +1058,15 @@ const TeacherDashboard = () => {
                       )}
 
                       {grievance.teacher_response && (
-                        <div className="bg-muted/50 p-3 rounded-lg">
+                        <div
+                          className={`p-3 rounded-lg ${
+                            grievance.status === 'resolved'
+                              ? 'bg-success/10 border border-success/20'
+                              : grievance.status === 'rejected'
+                                ? 'bg-warning/10 border border-warning/20'
+                                : 'bg-muted/50 border border-border/50'
+                          }`}
+                        >
                           <p className="text-sm font-medium">Your Response:</p>
                           <p className="text-sm mt-1">{grievance.teacher_response}</p>
                           {grievance.updated_marks && (
